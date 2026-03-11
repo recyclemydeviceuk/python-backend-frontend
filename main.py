@@ -46,18 +46,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Custom Middleware ──────────────────────────────────────────────────────────
+app.add_middleware(RateLimiterMiddleware)
+app.add_middleware(RequestLoggerMiddleware)
+
 # ── CORS ───────────────────────────────────────────────────────────────────────
+# Add CORS last so it runs FIRST (Starlette runs middleware in reverse order)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    max_age=86400,  # Cache preflight for 24 hours
 )
-
-# ── Custom Middleware ──────────────────────────────────────────────────────────
-app.add_middleware(RateLimiterMiddleware)
-app.add_middleware(RequestLoggerMiddleware)
 
 # ── Static Files ───────────────────────────────────────────────────────────────
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
