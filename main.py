@@ -162,7 +162,6 @@ async def sell(request: Request):
         "active_page": "sell",
         "apple_devices": apple_devices,
         "samsung_devices": samsung_devices,
-        "all_devices_json": json.dumps(devices_data),
     })
 
 

@@ -5,613 +5,83 @@
 
 {% block content %}
 
-<!-- ── STEP INDICATOR ── -->
-<div class="step-bar" id="step-bar">
-  <div class="step-bar-inner">
-    <div class="steps-row" id="steps-row">
-      <!-- rendered by JS -->
+<div class="grad-hero">
+  <div class="grad-hero-inner">
+    <span class="badge badge-white-glass" style="margin-bottom:1rem;">
+      <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Instant Quote — No Obligation
+    </span>
+    <h1 class="grad-hero-title">Select Your Device</h1>
+    <p class="grad-hero-sub">Choose your phone model to get an instant quote</p>
+    <div class="grad-hero-perks">
+      <span class="grad-hero-perk"><svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Safe &amp; Secure</span>
+      <span class="grad-hero-perk"><svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Instant Quote</span>
+      <span class="grad-hero-perk"><svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Data Wiped</span>
     </div>
   </div>
 </div>
 
-<!-- ── STEP PANELS ── -->
-<div id="sell-app">
-  <!-- Step 1: Select Phone -->
-  <div id="step-1" class="step-panel active">
-    <div class="grad-hero">
-      <div class="grad-hero-inner">
-        <span class="badge badge-white-glass" style="margin-bottom:1rem;">
-          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Instant Quote — No Obligation
-        </span>
-        <h1 class="grad-hero-title">Select Your Device</h1>
-        <p class="grad-hero-sub">Choose your phone model to get an instant quote</p>
-        <div class="grad-hero-perks">
-          <span class="grad-hero-perk"><svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Safe &amp; Secure</span>
-          <span class="grad-hero-perk"><svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Instant Quote</span>
-          <span class="grad-hero-perk"><svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Data Wiped</span>
+<div class="sell-devices-wrap">
+  {% if apple_devices or samsung_devices %}
+
+    {% if apple_devices %}
+    <div class="brand-section">
+      <div class="brand-section-header">
+        <div class="brand-icon brand-icon-apple">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        </div>
+        <div>
+          <div class="brand-section-name">Apple iPhone</div>
+          <div class="brand-section-count">{{ apple_devices|length }} model{{ 's' if apple_devices|length != 1 else '' }} available</div>
         </div>
       </div>
+      <div class="sell-devices-grid">
+        {% for device in apple_devices %}
+        <a class="sell-device-btn" href="/sell/storage?device_id={{ device.id }}&device_name={{ device.full_name | urlencode }}">
+          <img class="sell-device-img"
+            src="{{ device.image_url if device.image_url else 'https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png' }}"
+            alt="{{ device.full_name }}"
+            onerror="this.src='https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png'" />
+          <div class="sell-device-name">{{ device.name }}</div>
+          <div class="sell-device-price">{% if device.max_price %}Up to £{{ device.max_price | int }}{% else %}Get Quote{% endif %}</div>
+        </a>
+        {% endfor %}
+      </div>
     </div>
-    <div class="search-bar">
-      <div class="search-bar-inner">
-        <div class="search-row">
-          <div class="search-input-wrap">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="device-search" class="search-input" placeholder="Search iPhone 16, Galaxy S24..." />
-            <button class="search-clear" id="search-clear-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-          <div class="brand-tabs">
-            <button class="brand-tab active" data-brand="all">All Brands</button>
-            <button class="brand-tab" data-brand="apple">Apple</button>
-            <button class="brand-tab" data-brand="samsung">Samsung</button>
-          </div>
+    {% endif %}
+
+    {% if samsung_devices %}
+    <div class="brand-section">
+      <div class="brand-section-header">
+        <div class="brand-icon brand-icon-samsung">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
         </div>
-        <p class="results-count" id="results-count" style="display:none"></p>
-      </div>
-    </div>
-    <div id="step1-content" class="sell-devices-wrap">
-      {% if apple_devices or samsung_devices %}
-
-        {% if apple_devices %}
-        <div class="brand-section" data-brand-section="apple">
-          <div class="brand-section-header">
-            <div class="brand-icon brand-icon-apple">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-            </div>
-            <div>
-              <div class="brand-section-name">Apple iPhone</div>
-              <div class="brand-section-count">{{ apple_devices|length }} model{{ 's' if apple_devices|length != 1 else '' }} available</div>
-            </div>
-          </div>
-          <div class="sell-devices-grid">
-            {% for device in apple_devices %}
-            <a class="sell-device-btn"
-              href="/sell/storage?device_id={{ device.id }}&device_name={{ device.full_name | urlencode }}"
-              data-device-id="{{ device.id }}"
-              data-device-name="{{ device.full_name }}"
-              data-device-brand="{{ device.brand }}"
-              data-device-price="{{ device.max_price }}"
-              style="text-decoration:none;">
-              <img class="sell-device-img"
-                src="{{ device.image_url if device.image_url else 'https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png' }}"
-                alt="{{ device.full_name }}"
-                onerror="this.src='https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png'" />
-              <div class="sell-device-name">{{ device.name }}</div>
-              <div class="sell-device-price">{% if device.max_price %}Up to £{{ device.max_price | int }}{% else %}Get Quote{% endif %}</div>
-            </a>
-            {% endfor %}
-          </div>
+        <div>
+          <div class="brand-section-name">Samsung Galaxy</div>
+          <div class="brand-section-count">{{ samsung_devices|length }} model{{ 's' if samsung_devices|length != 1 else '' }} available</div>
         </div>
-        {% endif %}
-
-        {% if samsung_devices %}
-        <div class="brand-section" data-brand-section="samsung">
-          <div class="brand-section-header">
-            <div class="brand-icon brand-icon-samsung">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-            </div>
-            <div>
-              <div class="brand-section-name">Samsung Galaxy</div>
-              <div class="brand-section-count">{{ samsung_devices|length }} model{{ 's' if samsung_devices|length != 1 else '' }} available</div>
-            </div>
-          </div>
-          <div class="sell-devices-grid">
-            {% for device in samsung_devices %}
-            <a class="sell-device-btn"
-              href="/sell/storage?device_id={{ device.id }}&device_name={{ device.full_name | urlencode }}"
-              data-device-id="{{ device.id }}"
-              data-device-name="{{ device.full_name }}"
-              data-device-brand="{{ device.brand }}"
-              data-device-price="{{ device.max_price }}"
-              style="text-decoration:none;">
-              <img class="sell-device-img"
-                src="{{ device.image_url if device.image_url else 'https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png' }}"
-                alt="{{ device.full_name }}"
-                onerror="this.src='https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png'" />
-              <div class="sell-device-name">{{ device.name }}</div>
-              <div class="sell-device-price">{% if device.max_price %}Up to £{{ device.max_price | int }}{% else %}Get Quote{% endif %}</div>
-            </a>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-      {% else %}
-        <div class="status-state">
-          <p class="status-title">No devices available</p>
-          <p class="status-msg">Please check back soon or <a href="/contact" style="color:#dc2626;">contact us</a>.</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Step 2: Storage -->
-  <div id="step-2" class="step-panel">
-    <div class="grad-hero">
-      <div class="grad-hero-inner">
-        <button class="back-btn" id="back-to-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to Phone Selection</button>
-        <div id="step2-chip" class="chip"></div>
-        <h1 class="grad-hero-title">Select Storage Capacity</h1>
-        <p class="grad-hero-sub">Choose the storage size of your device</p>
+      </div>
+      <div class="sell-devices-grid">
+        {% for device in samsung_devices %}
+        <a class="sell-device-btn" href="/sell/storage?device_id={{ device.id }}&device_name={{ device.full_name | urlencode }}">
+          <img class="sell-device-img"
+            src="{{ device.image_url if device.image_url else 'https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png' }}"
+            alt="{{ device.full_name }}"
+            onerror="this.src='https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png'" />
+          <div class="sell-device-name">{{ device.name }}</div>
+          <div class="sell-device-price">{% if device.max_price %}Up to £{{ device.max_price | int }}{% else %}Get Quote{% endif %}</div>
+        </a>
+        {% endfor %}
       </div>
     </div>
-    <div id="step2-content" class="options-wrap">
-      <div class="loading-screen"><div class="spinner"></div><p>Loading storage options...</p></div>
-    </div>
-  </div>
+    {% endif %}
 
-  <!-- Step 3: Network -->
-  <div id="step-3" class="step-panel">
-    <div class="grad-hero">
-      <div class="grad-hero-inner">
-        <button class="back-btn" id="back-to-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to Storage Selection</button>
-        <div id="step3-chip" class="chip"></div>
-        <h1 class="grad-hero-title">Select Network</h1>
-        <p class="grad-hero-sub">Is your device locked to a specific carrier?</p>
-      </div>
+  {% else %}
+    <div class="status-state">
+      <p class="status-title">No devices available</p>
+      <p class="status-msg">Please check back soon or <a href="/contact" style="color:#dc2626;">contact us</a>.</p>
     </div>
-    <div id="step3-content" class="options-wrap">
-      <div class="loading-screen"><div class="spinner"></div><p>Loading network options...</p></div>
-    </div>
-  </div>
-
-  <!-- Step 4: Condition -->
-  <div id="step-4" class="step-panel">
-    <div class="grad-hero">
-      <div class="grad-hero-inner">
-        <button class="back-btn" id="back-to-3"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to Network Selection</button>
-        <div id="step4-chip" class="chip"></div>
-        <h1 class="grad-hero-title">Select Device Condition</h1>
-        <p class="grad-hero-sub">Be honest for an accurate quote — we verify on arrival</p>
-      </div>
-    </div>
-    <div id="step4-content" class="options-wrap">
-      <div class="loading-screen"><div class="spinner"></div><p>Loading condition options...</p></div>
-    </div>
-  </div>
-
-  <!-- Step 5: Details + Submit -->
-  <div id="step-5" class="step-panel">
-    <div class="grad-hero">
-      <div class="grad-hero-inner">
-        <button class="back-btn" id="back-to-4"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to Condition Selection</button>
-        <div id="step5-chip" class="chip"></div>
-        <h1 class="grad-hero-title">Complete Your Order</h1>
-        <p class="grad-hero-sub">Fill in your details to finalise the sale</p>
-      </div>
-    </div>
-    <div id="step5-content" class="container-md" style="padding:1.5rem 1rem 3rem;"></div>
-  </div>
-
-  <!-- Step 6: Success -->
-  <div id="step-success" class="step-panel">
-    <div id="success-content" class="container-sm" style="padding:2rem 1rem 3rem;"></div>
-  </div>
+  {% endif %}
 </div>
 
-<!-- Server-side device data for JS steps 2-5 -->
-<script id="server-devices-json" type="application/json">{{ all_devices_json | safe }}</script>
-
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-/* ── STATE ── */
-const state = {
-  currentStep: 1,
-  phone: null,
-  storage: null,
-  network: null,
-  condition: null,
-  postage: 'print',
-  allDevices: [],
-  pricingAll: [],
-  deviceMaxPrices: {},
-  brand: 'all',
-  query: '',
-  orderNumber: '',
-  form: { fullName:'', email:'', phone:'', address:'', postcode:'', accountName:'', sortCode:'', bankAccount:'' },
-};
-
-const STEP_LABELS = ['Select Phone','Storage','Network','Condition','Your Details'];
-const STEP_ICONS = [
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`,
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>`,
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-];
-const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-
-function renderStepBar() {
-  const steps = Array.from({length:5},(_,i)=>{
-    const n=i+1, completed=n<state.currentStep, active=n===state.currentStep;
-    const circleClass=completed?'completed':active?'active':'';
-    const labelClass=completed?'completed':active?'active':'';
-    const connectorFull=n<state.currentStep?'full':'';
-    const circleContent=completed?CHECK_ICON:STEP_ICONS[i];
-    const shortLabel=STEP_LABELS[i].split(' ')[0];
-    return `
-      <div class="step-item">
-        <div class="step-circle ${circleClass}">${circleContent}</div>
-        <span class="step-label ${labelClass}">${shortLabel}</span>
-      </div>
-      ${n<5?`<div class="step-connector"><div class="step-connector-track"><div class="step-connector-fill ${connectorFull}"></div></div></div>`:''}
-    `;
-  }).join('');
-  document.getElementById('steps-row').innerHTML=steps;
-}
-
-function goToStep(n) {
-  document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('active'));
-  const panel=document.getElementById(n===0?'step-success':`step-${n}`);
-  if(panel) panel.classList.add('active');
-  state.currentStep=n;
-  renderStepBar();
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-function selectPhone(id,name,maxPrice){
-  state.phone={id,name,maxPrice};
-  goToStep(2);
-  document.getElementById('step2-chip').innerHTML=`<svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>${name}`;
-  loadStep2();
-}
-
-function clearFilters(){
-  state.query='';state.brand='all';
-  document.getElementById('device-search').value='';
-  document.querySelectorAll('.brand-tab').forEach(t=>{t.classList.toggle('active',t.dataset.brand==='all');});
-  filterDevicesDom();
-}
-
-/* ── STEP 2 ── */
-async function loadStep2(){
-  const content=document.getElementById('step2-content');
-  content.innerHTML=`<div class="loading-screen"><div class="spinner"></div><p>Loading storage options...</p></div>`;
-  try {
-    const [storRes,prRes]=await Promise.allSettled([utilitiesApi.getStorageOptions(),pricingApi.getByDevice(state.phone.id)]);
-    const storData = storRes.status==='fulfilled' ? storRes.value : null;
-    const prData   = prRes.status==='fulfilled'   ? prRes.value   : null;
-    const prices={};
-    if(prData?.success && prData.data?.pricing){
-      prData.data.pricing.forEach(p=>{
-        const k=p.storage;
-        const max=Math.max(p.gradeNew||0, p.gradeGood||0, p.gradeBroken||0);
-        if(!prices[k]||prices[k]<max) prices[k]=max;
-      });
-    }
-    const availStorageValues=new Set(Object.keys(prices));
-    const storageSort=v=>{const n=parseInt(v)||0;return v&&v.toLowerCase().includes('tb')?n*1024:n;};
-    let opts=[];
-    if(storData?.success && storData.data?.storageOptions){
-      opts=storData.data.storageOptions.filter(s=>s.isActive && availStorageValues.has(s.value)).sort((a,b)=>storageSort(a.value)-storageSort(b.value));
-    }
-    if(!opts.length && availStorageValues.size>0){
-      opts=[...availStorageValues].sort((a,b)=>storageSort(a)-storageSort(b)).map(val=>({ _id: val, name: val, value: val }));
-    }
-    if(!opts.length){
-      content.innerHTML=`<div class="status-state"><div class="status-icon">${Icon.alertCircle}</div><p class="status-title">No storage options available</p><p class="status-msg">We could not find storage pricing for this device. Please go back and try another device.</p><div class="status-actions"><button class="btn-outline" onclick="goToStep(1)">Go Back</button><button class="btn-primary" style="padding:.5rem 1.5rem" onclick="loadStep2()">Retry</button></div></div>`;
-      return;
-    }
-    content.innerHTML=`<div class="storage-grid">${opts.map(o=>{const price=prices[o.value]||0;return `<button class="option-card" onclick="selectStorage('${o._id}','${o.name}','${o.value}')"><div class="option-card-hover-bg"></div><div class="option-icon" style="position:relative;"><svg style="width:1.75rem;height:1.75rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div><div class="option-size" style="position:relative;">${o.name}</div><div class="option-label" style="position:relative;">Storage</div><div class="option-price-badge" style="position:relative;">${price>0?'Up to £'+price:'Get Quote'}</div></button>`;}).join('')}</div><div class="info-box"><div class="info-box-icon"><svg style="width:1.25rem;height:1.25rem;color:#f59e0b" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><p class="info-box-text"><strong>Not sure about storage?</strong> Check Settings → General → About on your iPhone, or Settings → About on Samsung.</p></div>`;
-  } catch(e){
-    content.innerHTML=`<div class="status-state"><div class="status-icon">${Icon.alertCircle}</div><p class="status-title">Unable to load storage options</p><p class="status-msg">Failed to load storage options. Please check your connection and try again.</p><div class="status-actions"><button class="btn-outline" onclick="goToStep(1)">Go Back</button><button class="btn-primary" style="padding:.5rem 1.5rem" onclick="loadStep2()">Retry</button></div></div>`;
-  }
-}
-
-function selectStorage(id,name,value){
-  state.storage={id,name,value};
-  goToStep(3);
-  document.getElementById('step3-chip').innerHTML=`<svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>${state.phone.name} · ${name}`;
-  loadStep3();
-}
-
-/* ── STEP 3 ── */
-async function loadStep3(){
-  const content=document.getElementById('step3-content');
-  content.innerHTML=`<div class="loading-screen"><div class="spinner"></div><p>Loading network options...</p></div>`;
-  try {
-    const [netRes,prRes]=await Promise.allSettled([utilitiesApi.getNetworks(),pricingApi.getByDevice(state.phone.id)]);
-    const netData = netRes.status==='fulfilled' ? netRes.value : null;
-    const prData  = prRes.status==='fulfilled'  ? prRes.value  : null;
-    let availNets=new Set();
-    if(prData?.success&&prData.data?.pricing){
-      prData.data.pricing.forEach(p=>{ if(p.storage===state.storage.value) availNets.add(p.network); });
-    }
-    let nets=[];
-    if(netData?.success&&netData.data?.networks){
-      nets=netData.data.networks.filter(n=>n.isActive&&availNets.has(n.value)).sort((a,b)=>a.sortOrder-b.sortOrder);
-    }
-    if(!nets.length && availNets.size>0){
-      nets=[...availNets].sort().map(val=>({ _id:val, name:val, value:val }));
-    }
-    if(!nets.length){
-      content.innerHTML=`<div class="status-state"><div class="status-icon">${Icon.alertCircle}</div><p class="status-title">No network options available</p><p class="status-msg">We could not find network pricing for this device and storage combination.</p><div class="status-actions"><button class="btn-outline" onclick="goToStep(2)">Go Back</button><button class="btn-primary" style="padding:.5rem 1.5rem" onclick="loadStep3()">Retry</button></div></div>`;
-      return;
-    }
-    let selectedNetId=null;
-    const render=()=>{
-      content.innerHTML=`
-        <div class="blue-tip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg><p class="blue-tip-text"><strong>Tip:</strong> Check Settings → General → About (iPhone) or Settings → About → SIM Status (Samsung) to confirm your network lock status.</p></div>
-        <div class="network-grid">${nets.map(n=>{const sel=selectedNetId===n._id;return `<button class="network-card ${sel?'selected':''}" onclick="selectNetworkId('${n._id}','${n.name}','${n.value}')"><div class="network-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div><div style="flex:1"><div class="network-name">${n.name}</div><div class="network-val">${n.value}</div></div><div class="radio-dot ${sel?'selected':''}"><div class="radio-dot-inner"></div></div></button>`;}).join('')}</div>
-        ${selectedNetId?`<button class="continue-btn" onclick="confirmNetwork()">Continue with <u>${nets.find(n=>n._id===selectedNetId)?.name}</u><svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>`:''}
-      `;
-    };
-    window.selectNetworkId=function(id,name,value){ selectedNetId=id; state._pendingNetwork={id,name,value}; render(); };
-    window.confirmNetwork=function(){ if(!state._pendingNetwork) return; state.network=state._pendingNetwork; goToStep(4); document.getElementById('step4-chip').innerHTML=`<svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${state.phone.name} · ${state.storage.name} · ${state.network.name}</span>`; loadStep4(); };
-    render();
-  } catch(e){
-    content.innerHTML=`<div class="status-state"><div class="status-icon">${Icon.alertCircle}</div><p class="status-title">Unable to load network options</p><p class="status-msg">Failed to load network options.</p><div class="status-actions"><button class="btn-outline" onclick="goToStep(2)">Go Back</button><button class="btn-primary" style="padding:.5rem 1.5rem" onclick="loadStep3()">Retry</button></div></div>`;
-  }
-}
-
-/* ── STEP 4 ── */
-async function loadStep4(){
-  const content=document.getElementById('step4-content');
-  content.innerHTML=`<div class="loading-screen"><div class="spinner"></div><p>Loading condition options...</p></div>`;
-  try {
-    const [condRes,prRes]=await Promise.allSettled([utilitiesApi.getDeviceConditions(),pricingApi.getByDevice(state.phone.id)]);
-    const condData = condRes.status==='fulfilled' ? condRes.value : null;
-    const prData   = prRes.status==='fulfilled'   ? prRes.value   : null;
-    let availConds=new Set();
-    const priceMap={};
-    if(prData?.success&&prData.data?.pricing){
-      const ns=state.storage.value.toLowerCase().trim(), nn=state.network.value.toLowerCase().trim();
-      prData.data.pricing.forEach(p=>{
-        const ps=(p.storage||'').toLowerCase().trim(), pn=(p.network||'').toLowerCase().trim();
-        if((p.storage===state.storage.value||ps===ns)&&(p.network===state.network.value||pn===nn)){
-          priceMap.NEW=p.gradeNew; priceMap.GOOD=p.gradeGood; priceMap.BROKEN=p.gradeBroken;
-          if(p.gradeNew>0) availConds.add('NEW');
-          if(p.gradeGood>0) availConds.add('GOOD');
-          if(p.gradeBroken>0) availConds.add('BROKEN');
-        }
-      });
-    }
-    const condPriority={new:1,good:2,broken:3,poor:4};
-    let conds=[];
-    if(condData?.success&&condData.data?.deviceConditions){
-      conds=condData.data.deviceConditions.filter(c=>c.isActive&&availConds.has((c.value||'').toUpperCase())).sort((a,b)=>(condPriority[a.value?.toLowerCase()]||99)-(condPriority[b.value?.toLowerCase()]||99));
-    }
-    if(!conds.length && availConds.size>0){
-      const condMeta={NEW:{name:'New / Excellent',value:'NEW',description:'Device is in perfect or near-perfect condition with no visible damage.'},GOOD:{name:'Good / Working',value:'GOOD',description:'Device is fully working with minor cosmetic wear or light scratches.'},BROKEN:{name:'Broken / Faulty',value:'BROKEN',description:'Device has significant damage such as cracked screen or hardware faults.'}};
-      conds=[...availConds].sort((a,b)=>(condPriority[a.toLowerCase()]||99)-(condPriority[b.toLowerCase()]||99)).map(k=>({ _id:k, ...(condMeta[k]||{name:k,value:k,description:''}), isActive:true }));
-    }
-    if(!conds.length){
-      content.innerHTML=`<div class="status-state"><div class="status-icon">${Icon.alertCircle}</div><p class="status-title">No condition options available</p><p class="status-msg">We could not find pricing for this device combination.</p><div class="status-actions"><button class="btn-outline" onclick="goToStep(3)">Go Back</button><button class="btn-primary" style="padding:.5rem 1.5rem" onclick="loadStep4()">Retry</button></div></div>`;
-      return;
-    }
-    const condConfig={NEW:{badge:'Best Price',cls:'new-cond',badgeBg:'background:#dcfce7;color:#166534',priceBg:'#22c55e'},GOOD:{badge:'Good Value',cls:'good-cond',badgeBg:'background:#fef3c7;color:#92400e',priceBg:'#f59e0b'},BROKEN:{badge:'Still Paid',cls:'broken-cond',badgeBg:'background:#fee2e2;color:#991b1b',priceBg:'#dc2626'}};
-    let selectedCondId=null;
-    const render=()=>{
-      content.innerHTML=`
-        <div class="trust-chips">
-          <div class="trust-chip"><div class="trust-chip-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="trust-chip-title">Data Wiped</div><div class="trust-chip-desc">Military-grade erasure</div></div>
-          <div class="trust-chip"><div class="trust-chip-icon" style="background:#f0fdf4;"><svg style="width:1.25rem;height:1.25rem;color:#16a34a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="trust-chip-title">Fast Payment</div><div class="trust-chip-desc">After we receive it</div></div>
-          <div class="trust-chip"><div class="trust-chip-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><div class="trust-chip-title">Price Match</div><div class="trust-chip-desc">Beat any genuine quote</div></div>
-        </div>
-        ${conds.map(c=>{const cfg=condConfig[c.value]||condConfig.GOOD;const price=priceMap[c.value]||0;const sel=selectedCondId===c._id;return `<button class="condition-card ${cfg.cls}${sel?' selected':''}" onclick="selectConditionId('${c._id}')"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:.375rem;"><span class="cond-name">${c.name}</span><span class="cond-badge" style="${cfg.badgeBg}">${cfg.badge}</span>${sel?`<svg style="width:1.25rem;height:1.25rem;color:#dc2626;margin-left:.5rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`:''}</div><p class="cond-desc">${c.description||''}</p></div><div style="flex-shrink:0;text-align:right"><div class="cond-price" style="background:${cfg.priceBg}">${price>0?'£'+price:'Quote'}</div><div class="cond-price-label">instant quote</div></div></button>`;}).join('')}
-        <div class="blue-tip" style="margin-top:.5rem;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p class="blue-tip-text"><strong>Important:</strong> If the condition doesn't match your selection on arrival, we may revise the quote before processing payment.</p></div>
-        ${selectedCondId?`<button class="continue-btn" onclick="confirmCondition()">Continue with <u>${conds.find(c=>c._id===selectedCondId)?.name}</u> condition<svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>`:''}
-      `;
-    };
-    window.selectConditionId=function(id){ selectedCondId=id; render(); };
-    window.confirmCondition=function(){
-      const c=conds.find(x=>x._id===selectedCondId);
-      if(!c) return;
-      state.condition={id:c._id,name:c.name,value:c.value,description:c.description,price:priceMap[c.value]||0};
-      goToStep(5);
-      document.getElementById('step5-chip').innerHTML=`<svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:20rem">${state.phone.name} · ${state.storage.name} · ${state.network.name} · ${state.condition.name}</span>`;
-      renderStep5();
-    };
-    render();
-  } catch(e){
-    content.innerHTML=`<div class="status-state"><div class="status-icon">${Icon.alertCircle}</div><p class="status-title">Unable to load condition options</p><p class="status-msg">Failed to load condition options.</p><div class="status-actions"><button class="btn-outline" onclick="goToStep(3)">Go Back</button><button class="btn-primary" style="padding:.5rem 1.5rem" onclick="loadStep4()">Retry</button></div></div>`;
-  }
-}
-
-/* ── STEP 5 ── */
-function renderStep5(){
-  const fp=state.condition.price;
-  const content=document.getElementById('step5-content');
-  content.innerHTML=`
-    <div id="mobile-summary" style="margin-bottom:1rem;display:none;">
-      <div style="background:#fff;border-radius:1rem;border:1px solid #f3f4f6;overflow:hidden;">
-        <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:1rem;display:flex;align-items:center;justify-content:space-between;">
-          <div><p style="font-size:.625rem;color:#fca5a5;font-weight:600;">Your Quote</p><p style="font-size:2rem;font-weight:800;color:#fff;line-height:1;">£${fp}</p><p style="font-size:.625rem;color:#fca5a5;margin-top:2px;">Paid via UK bank transfer</p></div>
-          <div style="text-align:right"><p style="font-size:.75rem;font-weight:700;color:#fff;line-height:1.3;">${state.phone.name}</p><p style="font-size:.625rem;color:#fca5a5;margin-top:2px;">${state.storage.name} · ${state.condition.name}</p></div>
-        </div>
-      </div>
-    </div>
-    <div class="form-layout">
-      <div>
-        <form id="order-form" class="form-fields">
-          <div class="form-section">
-            <div class="form-section-header"><div class="form-icon form-icon-red"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><h3 class="form-section-title">Personal Details</h3></div>
-            <div class="form-fields">
-              <div><label class="field-label">Full Name <span style="color:#dc2626">*</span></label><input type="text" name="fullName" class="field-input" placeholder="John Doe" required /></div>
-              <div class="form-row">
-                <div><label class="field-label">Email Address <span style="color:#dc2626">*</span></label><input type="email" name="email" class="field-input" placeholder="john@example.com" required /></div>
-                <div><label class="field-label">Phone Number <span style="color:#dc2626">*</span></label><input type="tel" name="phone" class="field-input" placeholder="03333356679" required /></div>
-              </div>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-header"><div class="form-icon form-icon-red"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><h3 class="form-section-title">Your Address</h3></div>
-            <div class="form-fields">
-              <div><label class="field-label">Address <span style="color:#dc2626">*</span></label><textarea name="address" class="field-input field-textarea" rows="3" placeholder="123 High Street, London" required></textarea></div>
-              <div><label class="field-label">Postcode <span style="color:#dc2626">*</span></label><input type="text" name="postcode" class="field-input" placeholder="SW1A 1AA" required /></div>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-header"><div class="form-icon form-icon-green"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><h3 class="form-section-title">Bank Details</h3></div>
-            <p style="font-size:.75rem;color:#6b7280;margin-bottom:1rem;margin-left:2.75rem;">UK bank account for payment transfer</p>
-            <div class="form-fields">
-              <div><label class="field-label">Account Name <span style="color:#dc2626">*</span></label><input type="text" name="accountName" class="field-input" placeholder="John Doe" required /></div>
-              <div class="form-row">
-                <div><label class="field-label">Sort Code <span style="color:#dc2626">*</span></label><input type="text" name="sortCode" class="field-input" placeholder="12-34-56" required /></div>
-                <div><label class="field-label">Account Number <span style="color:#dc2626">*</span></label><input type="text" name="bankAccount" class="field-input" placeholder="12345678" required /></div>
-              </div>
-            </div>
-          </div>
-          <div class="form-section">
-            <div class="form-section-header"><div class="form-icon form-icon-amber"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><h3 class="form-section-title">Postage Option</h3></div>
-            <div style="display:flex;flex-direction:column;gap:.625rem;" id="postage-options">
-              <label class="postage-option selected" onclick="setPostage('print',this)"><div class="postage-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div><div style="flex:1"><div class="postage-title">Print Our Label</div><div class="postage-desc">We'll email you a free prepaid label to print at home</div></div><div class="radio-dot selected"><div class="radio-dot-inner"></div></div></label>
-              <label class="postage-option" onclick="setPostage('pack',this)"><div class="postage-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div style="flex:1"><div class="postage-title">Send a Pack From Us</div><div class="postage-desc">We'll post you a free prepaid packaging kit</div></div><div class="radio-dot"><div class="radio-dot-inner"></div></div></label>
-            </div>
-          </div>
-          <div id="form-error" style="display:none;" class="error-box"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div style="flex:1"><p class="error-box-title">Order Submission Failed</p><p class="error-box-msg" id="form-error-msg"></p></div><button type="button" class="error-box-close" onclick="document.getElementById('form-error').style.display='none'"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-          <button type="submit" id="submit-btn" class="submit-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Submit My Order — £${fp}</button>
-        </form>
-      </div>
-      <div class="order-sidebar" id="order-sidebar">
-        <div class="order-sidebar-header"><p class="order-sidebar-label">Your Payout</p><p class="order-sidebar-price">£${fp}</p><p class="order-sidebar-sub">Paid via UK bank transfer</p></div>
-        <div style="padding:1rem;border-bottom:1px solid #f3f4f6;"><p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem;">Device</p><p style="font-weight:700;color:#111827;font-size:.875rem;margin-bottom:.5rem;">${state.phone.name}</p><div style="display:flex;gap:.375rem;flex-wrap:wrap;"><span style="font-size:.625rem;font-weight:600;background:#fef2f2;color:#dc2626;padding:.125rem .5rem;border-radius:9999px;">${state.storage.name}</span><span style="font-size:.625rem;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:.125rem .5rem;border-radius:9999px;">${state.network.name}</span><span style="font-size:.625rem;font-weight:600;background:#f3f4f6;color:#4b5563;padding:.125rem .5rem;border-radius:9999px;">${state.condition.name}</span></div></div>
-      </div>
-    </div>
-  `;
-  const mobileSummary=document.getElementById('mobile-summary');
-  function updateMobileSummary(){mobileSummary.style.display=window.innerWidth<769?'block':'none';}
-  updateMobileSummary();
-  window.addEventListener('resize',updateMobileSummary);
-  document.getElementById('order-form').addEventListener('submit', async(e)=>{
-    e.preventDefault();
-    const form=e.target;
-    const fd=new FormData(form);
-    const payload={customerName:fd.get('fullName'),customerPhone:fd.get('phone'),customerEmail:fd.get('email'),customerAddress:fd.get('address'),postcode:fd.get('postcode'),deviceId:state.phone.id,deviceName:state.phone.name,network:state.network.value,deviceGrade:state.condition.value,storage:state.storage.value,offeredPrice:state.condition.price,postageMethod:state.postage==='print'?'label':'postbag',payoutDetails:{accountName:fd.get('accountName'),sortCode:fd.get('sortCode'),accountNumber:fd.get('bankAccount')}};
-    state.form={fullName:fd.get('fullName'),email:fd.get('email'),phone:fd.get('phone'),address:fd.get('address'),postcode:fd.get('postcode'),accountName:fd.get('accountName'),sortCode:fd.get('sortCode'),bankAccount:fd.get('bankAccount')};
-    const btn=document.getElementById('submit-btn');
-    btn.disabled=true;
-    btn.innerHTML=`<div style="width:1.25rem;height:1.25rem;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;"></div> Submitting...`;
-    document.getElementById('form-error').style.display='none';
-    try {
-      const res=await orderApi.create(payload);
-      if(res.success&&res.data?.order){ state.orderNumber=res.data.order.orderNumber; showSuccess(); }
-      else { showFormError(res.error||'Failed to create order. Please try again.'); btn.disabled=false; btn.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Submit My Order — £${fp}`; }
-    } catch(err){ showFormError(err.message||'Failed to submit order.'); btn.disabled=false; btn.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Submit My Order — £${fp}`; }
-  });
-}
-
-function setPostage(type,el){ state.postage=type; document.querySelectorAll('.postage-option').forEach(o=>{o.classList.remove('selected');o.querySelector('.radio-dot').classList.remove('selected');}); el.classList.add('selected'); el.querySelector('.radio-dot').classList.add('selected'); }
-function showFormError(msg){ document.getElementById('form-error').style.display='flex'; document.getElementById('form-error-msg').textContent=msg; }
-
-/* ── SUCCESS ── */
-function showSuccess(){
-  const fp=state.condition.price;
-  const orderDate=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-  const postageLabel=state.postage==='print'?'Print Our Label':'Send a Pack From Us';
-  document.getElementById('success-content').innerHTML=`
-    <div class="success-header"><div class="success-check"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><h1 class="success-title">Order Confirmed!</h1><p class="success-sub">We'll email your prepaid label within minutes</p><div class="order-badge">Order #${state.orderNumber}</div></div>
-    <div style="background:#fff;border-radius:1rem;border:1px solid #f3f4f6;overflow:hidden;margin-bottom:1rem;">
-      <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:1.25rem;display:flex;align-items:center;justify-content:space-between;"><div><p style="font-size:.625rem;font-weight:600;color:#fca5a5;text-transform:uppercase;letter-spacing:.05em;">Your Payout</p><p style="font-size:2.5rem;font-weight:800;color:#fff;line-height:1;">£${fp}</p><p style="font-size:.6875rem;color:#fca5a5;margin-top:2px;">Paid via UK bank transfer</p></div><div style="text-align:right"><p style="font-size:.75rem;color:#fca5a5;">Placed on</p><p style="font-size:.875rem;font-weight:700;color:#fff;">${orderDate}</p></div></div>
-      <div style="padding:1rem;border-bottom:1px solid #f3f4f6;"><p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem;">Device</p><p style="font-weight:700;color:#111827;font-size:.875rem;">${state.phone.name}</p><div style="display:flex;gap:.375rem;margin-top:.375rem;flex-wrap:wrap;"><span style="font-size:.625rem;font-weight:600;background:#fef2f2;color:#dc2626;padding:.125rem .5rem;border-radius:9999px;">${state.storage.name}</span><span style="font-size:.625rem;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:.125rem .5rem;border-radius:9999px;">${state.network.name}</span><span style="font-size:.625rem;font-weight:600;background:#f3f4f6;color:#4b5563;padding:.125rem .5rem;border-radius:9999px;">${state.condition.name}</span></div></div>
-    </div>
-    <a href="/" style="display:flex;align-items:center;justify-content:center;width:100%;background:#dc2626;color:#fff;font-weight:700;padding:.875rem;border-radius:1rem;font-size:.9375rem;text-decoration:none;">Back to Home</a>
-  `;
-  goToStep(0);
-}
-
-/* ── INIT ── */
-
-/* Pre-populate state from server-rendered data — no API call needed */
-try {
-  const _serverDevices = JSON.parse(document.getElementById('server-devices-json').textContent || '[]');
-  state.allDevices = _serverDevices.map(d => ({
-    _id: d.id,
-    id: d.id,
-    name: d.name,
-    fullName: d.full_name,
-    brand: d.brand,
-    imageUrl: d.image_url,
-    isActive: true,
-  }));
-  _serverDevices.forEach(d => { if(d.max_price) state.deviceMaxPrices[d.id] = d.max_price; });
-} catch(e) { /* state.allDevices stays empty, JS fetch path unused */ }
-
-/* Wire server-rendered device cards via event delegation — intercept for JS single-page flow */
-document.getElementById('step1-content').addEventListener('click', function(e) {
-  const card = e.target.closest('[data-device-id]');
-  if (!card) return;
-  e.preventDefault(); /* stop link navigation — use JS flow instead */
-  const id = card.dataset.deviceId;
-  const name = card.dataset.deviceName;
-  const price = parseFloat(card.dataset.devicePrice) || 0;
-  selectPhone(id, name, price);
-});
-
-/* Filter/search the server-rendered device cards in the DOM */
-function filterDevicesDom() {
-  const q = state.query.toLowerCase().trim();
-  const brand = state.brand;
-  let visible = 0;
-  document.querySelectorAll('#step1-content [data-device-id]').forEach(btn => {
-    const matchBrand = brand === 'all' || btn.dataset.deviceBrand === brand;
-    const name = (btn.dataset.deviceName || '').toLowerCase();
-    const matchQ = !q || name.includes(q);
-    const show = matchBrand && matchQ;
-    btn.style.display = show ? '' : 'none';
-    if (show) visible++;
-  });
-  /* Show/hide entire brand sections if all their cards are hidden */
-  document.querySelectorAll('#step1-content .brand-section').forEach(section => {
-    const anyVisible = Array.from(section.querySelectorAll('[data-device-id]')).some(b => b.style.display !== 'none');
-    section.style.display = anyVisible ? '' : 'none';
-  });
-  const countEl = document.getElementById('results-count');
-  if (q || brand !== 'all') {
-    countEl.style.display = 'block';
-    countEl.textContent = visible === 0 ? 'No devices found' : `${visible} device${visible !== 1 ? 's' : ''} found`;
-  } else {
-    countEl.style.display = 'none';
-  }
-}
-
-renderStepBar();
-
-document.getElementById('back-to-1').addEventListener('click',()=>goToStep(1));
-document.getElementById('back-to-2').addEventListener('click',()=>goToStep(2));
-document.getElementById('back-to-3').addEventListener('click',()=>goToStep(3));
-document.getElementById('back-to-4').addEventListener('click',()=>goToStep(4));
-
-document.getElementById('device-search').addEventListener('input',e=>{
-  state.query=e.target.value;
-  document.getElementById('search-clear-btn').classList.toggle('show',!!state.query);
-  filterDevicesDom();
-});
-document.getElementById('search-clear-btn').addEventListener('click',()=>{
-  state.query='';
-  document.getElementById('device-search').value='';
-  document.getElementById('search-clear-btn').classList.remove('show');
-  filterDevicesDom();
-});
-document.querySelectorAll('.brand-tab').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    state.brand=btn.dataset.brand;
-    document.querySelectorAll('.brand-tab').forEach(t=>t.classList.remove('active'));
-    btn.classList.add('active');
-    filterDevicesDom();
-  });
-});
-
-(()=>{
-  const p=new URLSearchParams(location.search);
-  const brand=p.get('brand');
-  const device=p.get('device');
-  if(brand){
-    state.brand=brand.toLowerCase();
-    const tab=document.querySelector(`.brand-tab[data-brand="${state.brand}"]`);
-    if(tab){ document.querySelectorAll('.brand-tab').forEach(t=>t.classList.remove('active')); tab.classList.add('active'); }
-  }
-  if(device){
-    state.query=device;
-    document.getElementById('device-search').value=device;
-    document.getElementById('search-clear-btn').classList.add('show');
-  }
-  if(brand||device) filterDevicesDom();
-})();
-</script>
 {% endblock %}
