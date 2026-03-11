@@ -153,15 +153,26 @@ async def how_it_works(request: Request):
 
 
 @app.get("/sell", tags=["Frontend"])
-async def sell(request: Request):
+async def sell(request: Request, brand: str = "all", q: str = ""):
     devices_data = await _get_devices_with_prices()
-    apple_devices = [d for d in devices_data if d["brand"] == "apple"]
-    samsung_devices = [d for d in devices_data if d["brand"] == "samsung"]
+    q_lower = q.strip().lower()
+    def match(d):
+        if q_lower and q_lower not in d["full_name"].lower() and q_lower not in d["name"].lower():
+            return False
+        return True
+    apple_devices = [d for d in devices_data if d["brand"] == "apple" and match(d)]
+    samsung_devices = [d for d in devices_data if d["brand"] == "samsung" and match(d)]
+    if brand == "apple":
+        samsung_devices = []
+    elif brand == "samsung":
+        apple_devices = []
     return templates.TemplateResponse("sell.html", {
         "request": request,
         "active_page": "sell",
         "apple_devices": apple_devices,
         "samsung_devices": samsung_devices,
+        "brand": brand,
+        "q": q,
     })
 
 

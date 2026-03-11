@@ -21,6 +21,30 @@
   </div>
 </div>
 
+<div class="search-bar">
+  <div class="search-bar-inner">
+    <form method="get" action="/sell" class="search-row">
+      <div class="search-input-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" name="q" class="search-input" placeholder="Search iPhone 16, Galaxy S24..." value="{{ q }}" />
+        {% if brand != 'all' %}<input type="hidden" name="brand" value="{{ brand }}" />{% endif %}
+      </div>
+      <button type="submit" style="display:none"></button>
+      <div class="brand-tabs">
+        <a class="brand-tab {% if brand == 'all' %}active{% endif %}" href="/sell?q={{ q | urlencode }}">All Brands</a>
+        <a class="brand-tab {% if brand == 'apple' %}active{% endif %}" href="/sell?brand=apple&q={{ q | urlencode }}">Apple</a>
+        <a class="brand-tab {% if brand == 'samsung' %}active{% endif %}" href="/sell?brand=samsung&q={{ q | urlencode }}">Samsung</a>
+      </div>
+    </form>
+    {% set total = apple_devices|length + samsung_devices|length %}
+    {% if q %}
+    <p class="results-count">{{ total }} device{{ 's' if total != 1 else '' }} found for "{{ q }}"
+      <a href="/sell{% if brand != 'all' %}?brand={{ brand }}{% endif %}" style="color:#dc2626;margin-left:.5rem;font-weight:600;">Clear</a>
+    </p>
+    {% endif %}
+  </div>
+</div>
+
 <div class="sell-devices-wrap">
   {% if apple_devices or samsung_devices %}
 
