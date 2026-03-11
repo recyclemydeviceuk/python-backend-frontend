@@ -48,10 +48,20 @@ app = FastAPI(
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
 _cors_origins = settings.cors_origins_list
+_always_allowed = [
+    "https://cashmymobile.co.uk",
+    "https://www.cashmymobile.co.uk",
+]
+if "*" in _cors_origins:
+    _final_origins = ["*"]
+else:
+    _final_origins = list(set(_cors_origins + _always_allowed))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=("*" not in _cors_origins),
+    allow_origins=_final_origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=("*" not in _final_origins),
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )

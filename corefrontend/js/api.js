@@ -1,6 +1,10 @@
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const _isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const _isRender = window.location.hostname.endsWith('.onrender.com');
+const API_BASE = _isLocal
   ? 'http://localhost:8000/api'
-  : '/api';
+  : _isRender
+    ? '/api'
+    : 'https://backend-cmm-m609.onrender.com/api';
 
 
 async function apiFetch(path, options = {}) {
