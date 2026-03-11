@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counter Offer Accepted</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header with green background -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+              <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Counter Offer Accepted!</h1>
+              <p style="margin: 10px 0 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">Thank you for your response</p>
+            </td>
+          </tr>
+
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">Hello {{customerName}},</p>
+              
+              <!-- Success Box -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #d1fae5; border-radius: 8px; margin: 20px 0; border: 1px solid #6ee7b7;">
+                <tr>
+                  <td style="padding: 20px; text-align: center;">
+                    <h2 style="margin: 0 0 10px 0; color: #065f46; font-size: 20px; font-weight: 600;">Great News!</h2>
+                    <p style="margin: 0; color: #047857; font-size: 15px;">You have accepted our counter offer of <strong>£{{revisedPrice}}</strong> for order #<strong>{{orderNumber}}</strong></p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Next Steps -->
+              <div style="margin: 30px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">Next Steps:</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #4b5563; font-size: 14px; line-height: 1.8;">
+                  <li>We will process your order with the new agreed price</li>
+                  <li>You'll receive payment confirmation when the order is completed</li>
+                  <li>Funds will be transferred within 3-5 business days</li>
+                </ul>
+              </div>
+
+              <div style="margin: 30px 0; padding: 20px; background-color: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+                <p style="margin: 0; color: #15803d; font-size: 14px; text-align: center;">
+                  <strong>Have questions?</strong><br>
+                  Cash My Mobile Team<br>
+                  <a href="mailto:{{supportEmail}}" style="color: #15803d; text-decoration: underline;">{{supportEmail}}</a>
+                </p>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 12px 12px;">
+              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 12px;">
+                © 2025 Cash My Mobile. All rights reserved.
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                45 Friargate, Preston, PR1 2AT
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

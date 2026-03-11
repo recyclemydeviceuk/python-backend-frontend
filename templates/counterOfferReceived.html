@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counter Offer for Your Device</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header with orange background -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">£ Counter Offer Received</h1>
+              <p style="margin: 10px 0 0 0; color: #ffffff; font-size: 16px; opacity: 0.95;">We have a revised offer for your device</p>
+            </td>
+          </tr>
+
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">Hello {{customerName}},</p>
+              
+              <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                We have collected and inspected your device (Order #<strong>{{orderNumber}}</strong>). Based on our inspection, we would like to offer you a revised price.
+              </p>
+
+              <!-- Action Required Box -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #10b981; border-radius: 8px; margin: 30px 0;">
+                <tr>
+                  <td style="padding: 24px; text-align: center;">
+                    <h2 style="margin: 0 0 10px 0; color: #ffffff; font-size: 20px; font-weight: 600;">Action Required - Review Within 7 Days</h2>
+                    <p style="margin: 0; color: #ffffff; font-size: 14px;">Please review and respond to this offer to proceed with your order</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <tr>
+                  <td align="center" style="padding: 10px 0;">
+                    <a href="{{reviewUrl}}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">Review Counter Offer</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 20px 0 0 0; color: #6b7280; font-size: 14px; text-align: center;">
+                Click above to accept or decline this offer on the review page
+              </p>
+
+              <!-- Price Comparison Box -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef3c7; border-radius: 8px; margin: 30px 0; border: 1px solid #fbbf24;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="width: 50%; padding: 10px;">
+                          <p style="margin: 0; color: #78716c; font-size: 14px;">Original Offer</p>
+                          <p style="margin: 5px 0 0 0; color: #78716c; font-size: 24px; font-weight: 700;">£{{originalPrice}}</p>
+                        </td>
+                        <td style="width: 50%; padding: 10px; text-align: right;">
+                          <p style="margin: 0; color: #10b981; font-size: 14px;">Revised Offer</p>
+                          <p style="margin: 5px 0 0 0; color: #10b981; font-size: 24px; font-weight: 700;">£{{revisedPrice}}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Reason for Adjustment -->
+              <div style="background-color: #f9fafb; border-left: 4px solid #6366f1; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                <p style="margin: 0 0 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">Reason for Adjustment:</p>
+                <p style="margin: 0; color: #4b5563; font-size: 14px; line-height: 1.6;">{{reason}}</p>
+              </div>
+
+
+              <!-- Expiry Notice -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef2f2; border-radius: 8px; margin: 30px 0; border: 1px solid #fecaca;">
+                <tr>
+                  <td style="padding: 16px; text-align: center;">
+                    <p style="margin: 0; color: #991b1b; font-size: 14px; font-weight: 600;">⏰ This offer expires on {{expiryDate}}</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Next Steps -->
+              <div style="margin: 30px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 18px; font-weight: 600;">Next Steps:</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #4b5563; font-size: 14px; line-height: 1.8;">
+                  <li>We will process your order with the new agreed price</li>
+                  <li>You'll receive payment confirmation when the order is completed</li>
+                  <li>Funds will be transferred within 3-5 business days</li>
+                </ul>
+              </div>
+
+              <div style="margin: 30px 0; padding: 20px; background-color: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+                <p style="margin: 0; color: #15803d; font-size: 14px; text-align: center;">
+                  <strong>Have questions?</strong><br>
+                  Recycle My Device Team<br>
+                  <a href="mailto:{{supportEmail}}" style="color: #15803d; text-decoration: underline;">{{supportEmail}}</a>
+                </p>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 12px 12px;">
+              <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 12px;">
+                © 2025 Cash My Mobile. All rights reserved.
+              </p>
+              <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                45 Friargate, Preston, PR1 2AT
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

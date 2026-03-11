@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Select Condition – {{ device_name }} – Cash My Mobile{% endblock %}
+{% block description %}Choose the condition of your {{ device_name }} to get your final quote.{% endblock %}
+
+{% block content %}
+<div class="grad-hero">
+  <div class="grad-hero-inner">
+    <a href="/sell/network?device_id={{ device_id }}&device_name={{ device_name | urlencode }}&storage={{ storage | urlencode }}" class="back-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Network Selection
+    </a>
+    <div class="chip" style="margin-bottom:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90%;">
+      <svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      {{ device_name }} · {{ storage }} · {{ network }}
+    </div>
+    <h1 class="grad-hero-title">Select Device Condition</h1>
+    <p class="grad-hero-sub">Be honest — we verify on arrival</p>
+  </div>
+</div>
+
+<div class="options-wrap">
+  <div class="trust-chips" style="margin-bottom:1.5rem;">
+    <div class="trust-chip">
+      <div class="trust-chip-icon" style="background:#fef2f2;">
+        <svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="trust-chip-title">Data Wiped</div>
+      <div class="trust-chip-desc">Military-grade erasure</div>
+    </div>
+    <div class="trust-chip">
+      <div class="trust-chip-icon" style="background:#f0fdf4;">
+        <svg style="width:1.25rem;height:1.25rem;color:#16a34a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="trust-chip-title">Fast Payment</div>
+      <div class="trust-chip-desc">After we receive it</div>
+    </div>
+    <div class="trust-chip">
+      <div class="trust-chip-icon" style="background:#fef2f2;">
+        <svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      </div>
+      <div class="trust-chip-title">Price Match</div>
+      <div class="trust-chip-desc">Beat any genuine quote</div>
+    </div>
+  </div>
+
+  {% if conditions %}
+    {% for cond in conditions %}
+    <a href="/sell/details?device_id={{ device_id }}&device_name={{ device_name | urlencode }}&storage={{ storage | urlencode }}&network={{ network | urlencode }}&condition={{ cond.value | urlencode }}&price={{ cond.price }}"
+       class="condition-card {% if cond.value | upper == 'NEW' %}new-cond{% elif cond.value | upper == 'GOOD' %}good-cond{% else %}broken-cond{% endif %}"
+       style="text-decoration:none;display:flex;align-items:center;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;margin-bottom:.375rem;">
+          <span class="cond-name">{{ cond.name }}</span>
+          {% if cond.value | upper == 'NEW' %}
+            <span class="cond-badge" style="background:#dcfce7;color:#166534">Best Price</span>
+          {% elif cond.value | upper == 'GOOD' %}
+            <span class="cond-badge" style="background:#fef3c7;color:#92400e">Good Value</span>
+          {% else %}
+            <span class="cond-badge" style="background:#fee2e2;color:#991b1b">Still Paid</span>
+          {% endif %}
+        </div>
+        <p class="cond-desc">{{ cond.description }}</p>
+      </div>
+      <div style="flex-shrink:0;text-align:right;">
+        {% if cond.value | upper == 'NEW' %}
+          <div class="cond-price" style="background:#22c55e">£{{ cond.price | int }}</div>
+        {% elif cond.value | upper == 'GOOD' %}
+          <div class="cond-price" style="background:#f59e0b">£{{ cond.price | int }}</div>
+        {% else %}
+          <div class="cond-price" style="background:#dc2626">£{{ cond.price | int }}</div>
+        {% endif %}
+        <div class="cond-price-label">instant quote</div>
+      </div>
+    </a>
+    {% endfor %}
+    <div class="blue-tip" style="margin-top:.5rem;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p class="blue-tip-text"><strong>Important:</strong> If the condition doesn't match your selection on arrival, we may revise the quote before processing payment.</p>
+    </div>
+  {% else %}
+  <div class="status-state">
+    <p class="status-title">No condition options found</p>
+    <p class="status-msg">We could not find pricing for this configuration. <a href="/sell/network?device_id={{ device_id }}&device_name={{ device_name | urlencode }}&storage={{ storage | urlencode }}" style="color:#dc2626;">Go back.</a></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

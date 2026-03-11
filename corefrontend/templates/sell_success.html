@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Order Confirmed #{{ order_number }} – Cash My Mobile{% endblock %}
+{% block description %}Your order has been confirmed. We'll send your prepaid label shortly.{% endblock %}
+
+{% block content %}
+<div class="container-sm" style="padding:2rem 1rem 3rem;">
+
+  <!-- Success header -->
+  <div class="success-header">
+    <div class="success-check">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h1 class="success-title">Order Confirmed!</h1>
+    <p class="success-sub">We'll email your prepaid label within minutes</p>
+    <div class="order-badge">Order #{{ order_number }}</div>
+  </div>
+
+  <!-- Payout summary -->
+  <div style="background:#fff;border-radius:1rem;border:1px solid #f3f4f6;overflow:hidden;margin-bottom:1rem;">
+    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:1.25rem;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <p style="font-size:.625rem;font-weight:600;color:#fca5a5;text-transform:uppercase;letter-spacing:.05em;">Your Payout</p>
+        <p style="font-size:2.5rem;font-weight:800;color:#fff;line-height:1;">£{{ price | int }}</p>
+        <p style="font-size:.6875rem;color:#fca5a5;margin-top:2px;">Paid via UK bank transfer</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="font-size:.75rem;color:#fca5a5;">Device</p>
+        <p style="font-size:.875rem;font-weight:700;color:#fff;">{{ device_name }}</p>
+      </div>
+    </div>
+
+    <!-- Postage info -->
+    <div style="padding:1rem;">
+      <p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem;">Postage</p>
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <div style="width:1.75rem;height:1.75rem;background:#fffbeb;border-radius:.5rem;display:flex;align-items:center;justify-content:center;">
+          <svg style="width:.875rem;height:.875rem;color:#d97706" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </div>
+        <span style="font-size:.875rem;font-weight:600;color:#111827;">
+          {% if postage_method == 'label' %}Print Our Label{% else %}Send a Pack From Us{% endif %}
+        </span>
+        <span style="font-size:.75rem;color:#16a34a;font-weight:700;background:#f0fdf4;padding:.125rem .5rem;border-radius:9999px;margin-left:auto;">FREE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- What happens next -->
+  <div style="background:#fff;border-radius:1rem;border:1px solid #f3f4f6;padding:1.25rem;margin-bottom:1rem;">
+    <p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem;">What Happens Next</p>
+
+    <div style="display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem;">
+      <div style="width:2rem;height:2rem;background:#fef2f2;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg style="width:1rem;height:1rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      </div>
+      <div style="flex:1;">
+        <p style="font-size:.875rem;font-weight:700;color:#111827;">Check Your Email</p>
+        <p style="font-size:.75rem;color:#6b7280;margin-top:2px;">Your free prepaid shipping label is on its way</p>
+      </div>
+      <span style="font-size:.625rem;font-weight:700;color:#d1d5db;flex-shrink:0;margin-top:4px;">01</span>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem;">
+      <div style="width:2rem;height:2rem;background:#fffbeb;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg style="width:1rem;height:1rem;color:#d97706" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      </div>
+      <div style="flex:1;">
+        <p style="font-size:.875rem;font-weight:700;color:#111827;">Pack &amp; Post</p>
+        <p style="font-size:.75rem;color:#6b7280;margin-top:2px;">Drop it at any post office — completely free</p>
+      </div>
+      <span style="font-size:.625rem;font-weight:700;color:#d1d5db;flex-shrink:0;margin-top:4px;">02</span>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem;">
+      <div style="width:2rem;height:2rem;background:#fef2f2;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg style="width:1rem;height:1rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <div style="flex:1;">
+        <p style="font-size:.875rem;font-weight:700;color:#111827;">We Inspect It</p>
+        <p style="font-size:.75rem;color:#6b7280;margin-top:2px;">Our team verifies the condition of your device</p>
+      </div>
+      <span style="font-size:.625rem;font-weight:700;color:#d1d5db;flex-shrink:0;margin-top:4px;">03</span>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:.75rem;">
+      <div style="width:2rem;height:2rem;background:#f0fdf4;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg style="width:1rem;height:1rem;color:#16a34a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div style="flex:1;">
+        <p style="font-size:.875rem;font-weight:700;color:#111827;">Get Paid Fast</p>
+        <p style="font-size:.75rem;color:#6b7280;margin-top:2px;">£{{ price | int }} sent straight to your bank account</p>
+      </div>
+      <span style="font-size:.625rem;font-weight:700;color:#d1d5db;flex-shrink:0;margin-top:4px;">04</span>
+    </div>
+  </div>
+
+  <!-- Security note -->
+  <div style="display:flex;align-items:flex-start;gap:.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:1rem;padding:1rem;margin-bottom:1.25rem;">
+    <svg style="width:1rem;height:1rem;color:#9ca3af;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <p style="font-size:.75rem;color:#6b7280;line-height:1.5;">Your data is encrypted and your bank details are only used for this payment. Questions? Call <span style="color:#dc2626;font-weight:600;">03333356679</span></p>
+  </div>
+
+  <a href="/" style="display:flex;align-items:center;justify-content:center;width:100%;background:#dc2626;color:#fff;font-weight:700;padding:.875rem;border-radius:1rem;font-size:.9375rem;text-decoration:none;">
+    Back to Home
+  </a>
+</div>
+{% endblock %}

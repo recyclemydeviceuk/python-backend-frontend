@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Select Storage – {{ device_name }} – Cash My Mobile{% endblock %}
+{% block description %}Choose the storage capacity for your {{ device_name }} to get an instant quote.{% endblock %}
+
+{% block content %}
+<div class="grad-hero">
+  <div class="grad-hero-inner">
+    <a href="/sell" class="back-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Phone Selection
+    </a>
+    <div class="chip" style="margin-bottom:.75rem;">
+      <svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      {{ device_name }}
+    </div>
+    <h1 class="grad-hero-title">Select Storage Capacity</h1>
+    <p class="grad-hero-sub">Choose the storage size of your device</p>
+  </div>
+</div>
+
+<div class="options-wrap">
+  {% if storage_options %}
+  <div class="storage-grid">
+    {% for opt in storage_options %}
+    <a href="/sell/network?device_id={{ device_id }}&device_name={{ device_name | urlencode }}&storage={{ opt.value | urlencode }}"
+       class="option-card" style="text-decoration:none;">
+      <div class="option-icon">
+        <svg style="width:1.75rem;height:1.75rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+      </div>
+      <div class="option-size">{{ opt.value }}</div>
+      <div class="option-label">Storage</div>
+      <div class="option-price-badge">{% if opt.max_price %}Up to £{{ opt.max_price | int }}{% else %}Get Quote{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+  <div class="info-box" style="margin:1.5rem auto;max-width:40rem;">
+    <div class="info-box-icon">
+      <svg style="width:1.25rem;height:1.25rem;color:#f59e0b" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <p class="info-box-text"><strong>Not sure about storage?</strong> Check Settings → General → About on your iPhone, or Settings → About on Samsung.</p>
+  </div>
+  {% else %}
+  <div class="status-state">
+    <p class="status-title">No storage options available</p>
+    <p class="status-msg">We could not find storage pricing for this device. <a href="/sell" style="color:#dc2626;">Go back and try another device.</a></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

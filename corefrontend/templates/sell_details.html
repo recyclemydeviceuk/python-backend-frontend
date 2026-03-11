@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Complete Your Order – {{ device_name }} – Cash My Mobile{% endblock %}
+{% block description %}Fill in your details to sell your {{ device_name }} for £{{ price | int }}.{% endblock %}
+
+{% block content %}
+<div class="grad-hero">
+  <div class="grad-hero-inner">
+    <a href="/sell/condition?device_id={{ device_id }}&device_name={{ device_name | urlencode }}&storage={{ storage | urlencode }}&network={{ network | urlencode }}" class="back-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Condition Selection
+    </a>
+    <div class="chip" style="margin-bottom:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90%;">
+      <svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      {{ device_name }} · {{ storage }} · {{ network }} · {{ condition }}
+    </div>
+    <h1 class="grad-hero-title">Complete Your Order</h1>
+    <p class="grad-hero-sub">Fill in your details — you'll receive <strong style="color:#fff;">£{{ price | int }}</strong> by bank transfer</p>
+  </div>
+</div>
+
+<div class="container-md" style="padding:1.5rem 1rem 3rem;">
+
+  <!-- Mobile quote summary -->
+  <div style="margin-bottom:1.5rem;background:#fff;border-radius:1rem;border:1px solid #f3f4f6;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);padding:1rem;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <p style="font-size:.625rem;color:#fca5a5;font-weight:600;">Your Quote</p>
+        <p style="font-size:2rem;font-weight:800;color:#fff;line-height:1;">£{{ price | int }}</p>
+        <p style="font-size:.625rem;color:#fca5a5;margin-top:2px;">Paid via UK bank transfer</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="font-size:.75rem;font-weight:700;color:#fff;line-height:1.3;">{{ device_name }}</p>
+        <p style="font-size:.625rem;color:#fca5a5;margin-top:2px;">{{ storage }} · {{ condition }}</p>
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" action="/sell/submit" class="form-fields">
+    <!-- Hidden state -->
+    <input type="hidden" name="device_id" value="{{ device_id }}">
+    <input type="hidden" name="device_name" value="{{ device_name }}">
+    <input type="hidden" name="storage" value="{{ storage }}">
+    <input type="hidden" name="network" value="{{ network }}">
+    <input type="hidden" name="condition" value="{{ condition }}">
+    <input type="hidden" name="price" value="{{ price }}">
+
+    <!-- Personal Details -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-icon form-icon-red">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <h3 class="form-section-title">Personal Details</h3>
+      </div>
+      <div class="form-fields">
+        <div>
+          <label class="field-label">Full Name <span style="color:#dc2626">*</span></label>
+          <input type="text" name="full_name" class="field-input" placeholder="John Doe" required />
+        </div>
+        <div class="form-row">
+          <div>
+            <label class="field-label">Email Address <span style="color:#dc2626">*</span></label>
+            <input type="email" name="email" class="field-input" placeholder="john@example.com" required />
+          </div>
+          <div>
+            <label class="field-label">Phone Number <span style="color:#dc2626">*</span></label>
+            <input type="tel" name="phone" class="field-input" placeholder="03333356679" required />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Address -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-icon form-icon-red">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <h3 class="form-section-title">Your Address</h3>
+      </div>
+      <div class="form-fields">
+        <div>
+          <label class="field-label">Address <span style="color:#dc2626">*</span></label>
+          <textarea name="address" class="field-input field-textarea" rows="3" placeholder="123 High Street, London" required></textarea>
+        </div>
+        <div>
+          <label class="field-label">Postcode <span style="color:#dc2626">*</span></label>
+          <input type="text" name="postcode" class="field-input" placeholder="SW1A 1AA" required />
+        </div>
+      </div>
+    </div>
+
+    <!-- Bank Details -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-icon form-icon-green">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <h3 class="form-section-title">Bank Details</h3>
+      </div>
+      <p style="font-size:.75rem;color:#6b7280;margin-bottom:1rem;margin-left:2.75rem;">UK bank account for payment transfer</p>
+      <div class="form-fields">
+        <div>
+          <label class="field-label">Account Name <span style="color:#dc2626">*</span></label>
+          <input type="text" name="account_name" class="field-input" placeholder="John Doe" required />
+        </div>
+        <div class="form-row">
+          <div>
+            <label class="field-label">Sort Code <span style="color:#dc2626">*</span></label>
+            <input type="text" name="sort_code" class="field-input" placeholder="12-34-56" required />
+          </div>
+          <div>
+            <label class="field-label">Account Number <span style="color:#dc2626">*</span></label>
+            <input type="text" name="account_number" class="field-input" placeholder="12345678" required />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Postage -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-icon form-icon-amber">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </div>
+        <h3 class="form-section-title">Postage Option</h3>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.625rem;">
+        <label class="postage-option" style="cursor:pointer;">
+          <input type="radio" name="postage_method" value="label" checked style="position:absolute;opacity:0;pointer-events:none;" />
+          <div class="postage-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div class="postage-title">Print Our Label</div>
+            <div class="postage-desc">We'll email you a free prepaid label to print at home</div>
+          </div>
+        </label>
+        <label class="postage-option" style="cursor:pointer;">
+          <input type="radio" name="postage_method" value="postbag" style="position:absolute;opacity:0;pointer-events:none;" />
+          <div class="postage-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div class="postage-title">Send a Pack From Us</div>
+            <div class="postage-desc">We'll post you a free prepaid packaging kit</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Submit My Order — £{{ price | int }}
+    </button>
+  </form>
+</div>
+{% endblock %}

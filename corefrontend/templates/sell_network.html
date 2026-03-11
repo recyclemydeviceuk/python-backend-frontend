@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Select Network – {{ device_name }} – Cash My Mobile{% endblock %}
+{% block description %}Choose the network for your {{ device_name }} to get an instant quote.{% endblock %}
+
+{% block content %}
+<div class="grad-hero">
+  <div class="grad-hero-inner">
+    <a href="/sell/storage?device_id={{ device_id }}&device_name={{ device_name | urlencode }}" class="back-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Storage Selection
+    </a>
+    <div class="chip" style="margin-bottom:.75rem;">
+      <svg style="width:.875rem;height:.875rem;flex-shrink:0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      {{ device_name }} · {{ storage }}
+    </div>
+    <h1 class="grad-hero-title">Select Network</h1>
+    <p class="grad-hero-sub">Is your device locked to a specific carrier?</p>
+  </div>
+</div>
+
+<div class="options-wrap">
+  <div class="blue-tip" style="max-width:40rem;margin:0 auto 1.5rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+    <p class="blue-tip-text"><strong>Tip:</strong> Check Settings → General → About (iPhone) or Settings → About → SIM Status (Samsung) to confirm your network lock status.</p>
+  </div>
+
+  {% if network_options %}
+  <div class="network-grid" style="max-width:40rem;margin:0 auto;">
+    {% for net in network_options %}
+    <a href="/sell/condition?device_id={{ device_id }}&device_name={{ device_name | urlencode }}&storage={{ storage | urlencode }}&network={{ net.value | urlencode }}"
+       class="network-card" style="text-decoration:none;">
+      <div class="network-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+      </div>
+      <div style="flex:1">
+        <div class="network-name">{{ net.value }}</div>
+        <div class="network-val">{% if net.max_price %}Up to £{{ net.max_price | int }}{% else %}Get Quote{% endif %}</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.25rem;height:1.25rem;color:#9ca3af;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="status-state">
+    <p class="status-title">No network options available</p>
+    <p class="status-msg">We could not find network pricing for this combination. <a href="/sell/storage?device_id={{ device_id }}&device_name={{ device_name | urlencode }}" style="color:#dc2626;">Go back.</a></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

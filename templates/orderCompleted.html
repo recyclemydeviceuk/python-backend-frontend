@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Completed - {{companyName}}</title>
+</head>
+<body style="margin: 0; padding: 20px; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151;">
+    <table role="presentation" style="width: 100%; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);" cellspacing="0" cellpadding="0" border="0">
+        <!-- Header Section -->
+        <tr>
+            <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center;">
+                <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 28px; font-weight: 800; color: #ffffff; text-transform: uppercase; letter-spacing: 2px; padding-bottom: 15px;">
+                            {{companyName}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 20px 0;">
+                            <table role="presentation" style="margin: 0 auto; width: 80px; height: 80px; background-color: #ffffff; border-radius: 50%;" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="text-align: center; font-size: 46px; color: #10b981;">&#127881;</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 28px; font-weight: 700; color: #ffffff; padding: 10px 0 5px 0;">Order Completed!</td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 15px; color: rgba(255,255,255,0.95);">Your payment has been processed</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
+        <!-- Main Content -->
+        <tr>
+            <td style="padding: 40px 30px;">
+                <!-- Greeting -->
+                <table role="presentation" style="width: 100%; margin-bottom: 15px;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 18px; color: #1f2937; font-weight: 600;">Hello {{customerName}},</td>
+                    </tr>
+                </table>
+
+                <table role="presentation" style="width: 100%; margin-bottom: 30px;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 16px; color: #6b7280; line-height: 1.7;">Fantastic news! Your order has been completed and your payment has been successfully processed. Thank you for choosing us to recycle your device!</td>
+                    </tr>
+                </table>
+
+                <!-- Order Card -->
+                <table role="presentation" style="width: 100%; background-color: #f9fafb; border-radius: 10px; padding: 25px; margin: 25px 0; border: 2px solid #10b981;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="text-align: center; padding-bottom: 15px;">
+                            <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; padding-bottom: 8px;">Order Number</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 22px; font-weight: 800; color: #dc2626; letter-spacing: 1px;">#{{orderNumber}}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; padding-top: 10px;">
+                            <span style="display: inline-block; background-color: #10b981; color: #ffffff; padding: 10px 24px; border-radius: 50px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">&#10003; COMPLETED & PAID</span>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Device Section -->
+                <table role="presentation" style="width: 100%; margin: 30px 0;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 20px; font-weight: 700; color: #1f2937; padding-bottom: 15px;">Order Summary</td>
+                    </tr>
+                </table>
+
+                <!-- Device Info Box -->
+                <table role="presentation" style="width: 100%; background-color: #ffffff; border-radius: 10px; padding: 20px; border: 1px solid #e5e7eb;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                            <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="font-weight: 600; color: #6b7280; font-size: 15px;">Device Model</td>
+                                    <td style="text-align: right; color: #1f2937; font-weight: 600; font-size: 15px;">{{deviceName}}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                            <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="font-weight: 600; color: #6b7280; font-size: 15px;">Device Condition</td>
+                                    <td style="text-align: right; color: #1f2937; font-weight: 600; font-size: 15px;">{{deviceGrade}}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px 0;">
+                            <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="font-weight: 600; color: #6b7280; font-size: 15px;">Payment Status</td>
+                                    <td style="text-align: right;">
+                                        <span style="background-color: #10b981; color: #ffffff; padding: 4px 12px; border-radius: 50px; font-size: 13px; font-weight: 700;">PAID</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Price Box -->
+                <table role="presentation" style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; padding: 30px; margin: 30px 0; text-align: center;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td>
+                            <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="font-size: 14px; color: rgba(255,255,255,0.9); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Amount Paid</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 42px; font-weight: 800; color: #ffffff;">£{{finalPrice}}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Thank You Message -->
+                <table role="presentation" style="width: 100%; background-color: #fef3c7; border-radius: 10px; padding: 25px; margin: 30px 0; border-left: 5px solid #f59e0b;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 18px; font-weight: 700; color: #92400e; padding-bottom: 15px; text-align: center;">Thank You for Choosing {{companyName}}!</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #78350f; font-size: 15px; line-height: 1.8; text-align: center;">
+                            We truly appreciate your business and trust in our service. By recycling your device with us, you're not only getting great value but also contributing to a more sustainable future. 
+                            <br><br>
+                            <strong>We hope to serve you again soon!</strong>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Divider -->
+                <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="height: 2px; background-color: #e5e7eb; margin: 30px 0;"></td>
+                    </tr>
+                </table>
+
+                <!-- Centered Text -->
+                <table role="presentation" style="width: 100%; text-align: center; margin: 20px 0;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 16px; color: #6b7280; line-height: 1.7;">If you have any questions about this order or payment, please don't hesitate to reach out to us.</td>
+                    </tr>
+                </table>
+
+                <!-- Contact Info -->
+                <table role="presentation" style="width: 100%; background-color: #f3f4f6; padding: 25px; border-radius: 10px; margin: 30px 0; border: 1px solid #d1d5db; text-align: center;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 18px; font-weight: 700; color: #1f2937; padding-bottom: 15px;">Need Help? We're Here!</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6b7280; font-size: 15px; font-weight: 500; padding: 8px 0;">
+                            <strong style="color: #10b981;">Email:</strong> {{supportEmail}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6b7280; font-size: 15px; font-weight: 500; padding: 8px 0;">
+                            <strong style="color: #10b981;">Phone:</strong> {{supportPhone}}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+            <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="font-size: 16px; color: #1f2937; font-weight: 600; padding-bottom: 10px;">We appreciate your business!</td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 14px; color: #6b7280; padding: 10px 0;">Feel free to recycle more devices with us anytime. We'd love to work with you again!</td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 12px; color: #9ca3af; padding-top: 15px; line-height: 1.6;">
+                            This is an automated message. Please do not reply directly to this email.<br>
+                            If you have any questions, please contact us using the information above.
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

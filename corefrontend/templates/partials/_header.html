@@ -1,0 +1,69 @@
+<header class="site-header" id="site-header">
+  <div class="header-inner">
+    <a href="/" class="header-logo">
+      <img src="https://res.cloudinary.com/dn2sab6qc/image/upload/v1772457689/CMM-Logo_kid8km.png" alt="Cash My Mobile" />
+    </a>
+    <nav class="nav-links">
+      <a href="/" class="nav-link{% if active_page == 'home' %} active{% endif %}" data-page="home">Home</a>
+      <a href="/sell" class="nav-link{% if active_page == 'sell' %} active{% endif %}" data-page="sell">Sell Phone</a>
+      <a href="/how-it-works" class="nav-link{% if active_page == 'how' %} active{% endif %}" data-page="how">How It Works</a>
+      <a href="/about" class="nav-link{% if active_page == 'about' %} active{% endif %}" data-page="about">About Us</a>
+      <a href="/contact" class="nav-link{% if active_page == 'contact' %} active{% endif %}" data-page="contact">Contact</a>
+      <a href="/faq" class="nav-link{% if active_page == 'faq' %} active{% endif %}" data-page="faq">FAQ</a>
+    </nav>
+    <div class="header-actions">
+      <a href="/sell" class="btn-primary desktop-cta">
+        Get Started
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="/sell" class="btn-mobile-cta">Get Quote</a>
+      <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">
+        <span id="hamburger-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </span>
+      </button>
+    </div>
+  </div>
+</header>
+<div class="mobile-overlay" id="mobile-overlay"></div>
+<div class="mobile-drawer" id="mobile-drawer">
+  <nav class="mobile-nav">
+    <a href="/" class="mobile-nav-link{% if active_page == 'home' %} active{% endif %}" data-page="home"><span class="dot"></span>Home</a>
+    <a href="/sell" class="mobile-nav-link{% if active_page == 'sell' %} active{% endif %}" data-page="sell"><span class="dot"></span>Sell Phone</a>
+    <a href="/how-it-works" class="mobile-nav-link{% if active_page == 'how' %} active{% endif %}" data-page="how"><span class="dot"></span>How It Works</a>
+    <a href="/about" class="mobile-nav-link{% if active_page == 'about' %} active{% endif %}" data-page="about"><span class="dot"></span>About Us</a>
+    <a href="/contact" class="mobile-nav-link{% if active_page == 'contact' %} active{% endif %}" data-page="contact"><span class="dot"></span>Contact</a>
+    <a href="/faq" class="mobile-nav-link{% if active_page == 'faq' %} active{% endif %}" data-page="faq"><span class="dot"></span>FAQ</a>
+  </nav>
+  <div class="mobile-cta-wrap">
+    <a href="/sell" class="btn-primary-full">
+      Get My Free Quote
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </a>
+  </div>
+</div>
+<script>
+  (function() {
+    const header = document.getElementById('site-header');
+    const hamburger = document.getElementById('hamburger-btn');
+    const overlay = document.getElementById('mobile-overlay');
+    const drawer = document.getElementById('mobile-drawer');
+    const icon = document.getElementById('hamburger-icon');
+    if (!header || !hamburger) return;
+    let open = false;
+    const menuSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`;
+    const closeSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    window.addEventListener('scroll', function() {
+      header.classList.toggle('scrolled', window.scrollY > 10);
+    }, { passive: true });
+    function toggleMenu() {
+      open = !open;
+      drawer.classList.toggle('open', open);
+      overlay.classList.toggle('open', open);
+      icon.innerHTML = open ? closeSVG : menuSVG;
+      document.body.style.overflow = open ? 'hidden' : '';
+    }
+    hamburger.addEventListener('click', toggleMenu);
+    overlay.addEventListener('click', toggleMenu);
+  })();
+</script>

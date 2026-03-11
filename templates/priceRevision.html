@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Revision - {{orderNumber}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: #dc2626;
+            color: #ffffff;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .price-comparison {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .price-row:last-child {
+            border-bottom: none;
+        }
+        .price-label {
+            font-weight: 600;
+            color: #6b7280;
+        }
+        .price-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .price-old {
+            color: #dc2626;
+            text-decoration: line-through;
+        }
+        .price-new {
+            color: #059669;
+        }
+        .reason-box {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .reason-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        .reason-text {
+            color: #4b5563;
+            font-style: italic;
+        }
+        .footer {
+            background: #f9fafb;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .contact-info {
+            margin-top: 15px;
+        }
+        .contact-info a {
+            color: #dc2626;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Price Revision Notice</h1>
+        </div>
+        
+        <div class="content">
+            <p class="greeting">Dear {{customerName}},</p>
+            
+            <p>We have completed the inspection of your device and need to inform you of a price adjustment for your order <strong>{{orderNumber}}</strong>.</p>
+            
+            <div class="info-box">
+                <strong>Device:</strong> {{deviceName}}
+            </div>
+            
+            <div class="price-comparison">
+                <div class="price-row">
+                    <span class="price-label">Original Quote:</span>
+                    <span class="price-value price-old">{{originalPrice}}</span>
+                </div>
+                <div class="price-row">
+                    <span class="price-label">Revised Price:</span>
+                    <span class="price-value price-new">{{revisedPrice}}</span>
+                </div>
+            </div>
+            
+            <div class="reason-box">
+                <div class="reason-title">Reason for Price Revision:</div>
+                <div class="reason-text">{{revisionReason}}</div>
+            </div>
+            
+            <p>If you have any questions or concerns about this price revision, please don't hesitate to contact our support team. We're here to help!</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://wa.me/447742692367?text=Hi%2C%20I%20have%20a%20question%20about%20my%20order%20{{orderNumber}}%20price%20revision" 
+                   style="display: inline-block; background-color: #25D366; color: #ffffff; text-decoration: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);">
+                    Chat with us on WhatsApp
+                </a>
+            </div>
+            
+            <p>Thank you for choosing {{companyName}}.</p>
+            
+            <p style="margin-top: 30px;">
+                Best regards,<br>
+                <strong>{{companyName}} Team</strong>
+            </p>
+        </div>
+        
+        <div class="footer">
+            <div class="contact-info">
+                <strong>Need help?</strong><br>
+                Email: <a href="mailto:{{supportEmail}}">{{supportEmail}}</a><br>
+                Phone: {{supportPhone}}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

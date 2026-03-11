@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Counter Offer Review – Cash My Mobile</title>
+  <meta name="description" content="Review and respond to your counter offer from Cash My Mobile." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="header-root"></div>
+
+<section class="section section-bg-gray" style="min-height:80vh;">
+  <div class="container-sm">
+    <div id="counter-offer-root">
+      <div class="loading-screen">
+        <div class="spinner"></div>
+        <p>Loading your counter offer...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="footer-root"></div>
+
+<script src="js/api.js"></script>
+<script src="js/components.js"></script>
+<script>
+  loadHeader('');
+  loadFooter();
+
+  const root = document.getElementById('counter-offer-root');
+
+  async function loadCounterOffer() {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+
+    if (!token) {
+      root.innerHTML = `
+        <div class="status-state">
+          <div class="status-icon">${Icon.alertCircle}</div>
+          <p class="status-title">Invalid Link</p>
+          <p class="status-msg">This counter offer link is invalid or has expired. Please contact us if you believe this is an error.</p>
+          <div class="status-actions">
+            <a href="contact.html" class="btn-primary" style="padding:.5rem 1.5rem;font-size:.875rem;">Contact Us</a>
+            <a href="index.html" class="btn-outline">Go Home</a>
+          </div>
+        </div>`;
+      return;
+    }
+
+    try {
+      const res = await counterOfferApi.getByToken(token);
+
+      if (!res.success || !res.data) {
+        root.innerHTML = `
+          <div class="status-state">
+            <div class="status-icon">${Icon.alertCircle}</div>
+            <p class="status-title">Offer Not Found</p>
+            <p class="status-msg">We couldn't find this counter offer. It may have already been responded to or the link may have expired.</p>
+            <div class="status-actions">
+              <a href="contact.html" class="btn-primary" style="padding:.5rem 1.5rem;font-size:.875rem;">Contact Us</a>
+              <a href="index.html" class="btn-outline">Go Home</a>
+            </div>
+          </div>`;
+        return;
+      }
+
+      const offer = res.data.counter_offer || res.data;
+      const alreadyResponded = offer.status === 'ACCEPTED' || offer.status === 'DECLINED';
+
+      if (alreadyResponded) {
+        const isAccepted = offer.status === 'ACCEPTED';
+        root.innerHTML = `
+          <div class="counter-card" style="text-align:center;">
+            <div style="width:4rem;height:4rem;background:${isAccepted ? '#f0fdf4' : '#fef2f2'};border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+              <svg style="width:2rem;height:2rem;color:${isAccepted ? '#16a34a' : '#dc2626'}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h2 style="font-size:1.5rem;font-weight:800;color:#111827;margin-bottom:.5rem;">
+              Offer ${isAccepted ? 'Accepted' : 'Declined'}
+            </h2>
+            <p style="color:#6b7280;margin-bottom:1.5rem;">You have already ${isAccepted ? 'accepted' : 'declined'} this counter offer.</p>
+            ${isAccepted ? `<p style="font-size:.875rem;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:.75rem;padding:.75rem;margin-bottom:1.5rem;">Payment will be processed to your bank account shortly.</p>` : ''}
+            <a href="index.html" class="btn-primary" style="display:inline-flex;padding:.75rem 2rem;">Back to Home</a>
+          </div>`;
+        return;
+      }
+
+      const order = res.data.order || {};
+      const originalPrice = offer.originalPrice || offer.original_price || order.offeredPrice || order.offered_price || 0;
+      const counterPrice = offer.counterPrice || offer.counter_price || offer.newPrice || 0;
+      const deviceName = offer.deviceName || offer.device_name || order.deviceName || order.device_name || 'Your Device';
+      const customerName = offer.customerName || offer.customer_name || order.customerName || order.customer_name || 'Customer';
+
+      root.innerHTML = `
+        <div class="counter-card">
+          <!-- Header -->
+          <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:1rem;padding:1.75rem;text-align:center;margin-bottom:1.25rem;">
+            <div style="width:3.5rem;height:3.5rem;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;">
+              <svg style="width:2rem;height:2rem;color:#fff" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
+            <h1 style="font-size:1.5rem;font-weight:800;color:#fff;margin-bottom:.25rem;">Counter Offer</h1>
+            <p style="color:rgba(255,255,255,.8);font-size:.875rem;">We've reviewed your device and have a revised price</p>
+          </div>
+
+          <!-- Device info -->
+          <div style="background:#f9fafb;border:1px solid #f3f4f6;border-radius:1rem;padding:1.25rem;margin-bottom:1.25rem;">
+            <p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem;">Device</p>
+            <p style="font-weight:700;color:#111827;font-size:1rem;">${deviceName}</p>
+            ${offer.storage ? `<span style="font-size:.625rem;font-weight:600;background:#fef2f2;color:#dc2626;padding:.125rem .5rem;border-radius:9999px;display:inline-block;margin-top:.375rem;">${offer.storage}</span>` : ''}
+          </div>
+
+          <!-- Price comparison -->
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem;margin-bottom:1.25rem;">
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:1rem;padding:1.25rem;text-align:center;">
+              <p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;">Original Quote</p>
+              <p style="font-size:1.75rem;font-weight:800;color:#dc2626;text-decoration:line-through;opacity:.6;">£${originalPrice}</p>
+            </div>
+            <div style="font-size:1.5rem;font-weight:800;color:#9ca3af;">→</div>
+            <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:1rem;padding:1.25rem;text-align:center;box-shadow:0 8px 20px rgba(245,158,11,.25);">
+              <p style="font-size:.625rem;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;">Counter Offer</p>
+              <p style="font-size:1.75rem;font-weight:800;color:#fff;">£${counterPrice}</p>
+            </div>
+          </div>
+
+          <!-- Reason -->
+          ${offer.reason ? `
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:1rem;padding:1rem;margin-bottom:1.25rem;display:flex;gap:.75rem;">
+            <svg style="width:1.25rem;height:1.25rem;color:#f59e0b;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div>
+              <p style="font-weight:700;font-size:.875rem;color:#111827;margin-bottom:.25rem;">Reason for Revision</p>
+              <p style="font-size:.875rem;color:#6b7280;line-height:1.6;">${offer.reason}</p>
+            </div>
+          </div>` : ''}
+
+          <!-- Greeting -->
+          <p style="font-size:.9375rem;color:#4b5563;line-height:1.6;margin-bottom:1.5rem;">
+            Hi <strong>${customerName}</strong>, after inspecting your device, we'd like to offer you <strong>£${counterPrice}</strong>. 
+            You can accept this revised price or decline and we'll return your device free of charge.
+          </p>
+
+          <!-- Error message -->
+          <div id="offer-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:.75rem;padding:.875rem;margin-bottom:1rem;">
+            <p style="font-size:.875rem;color:#dc2626;" id="offer-error-text"></p>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex;flex-direction:column;gap:.75rem;">
+            <button id="accept-btn" onclick="respondToOffer('accept')" style="width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;padding:1rem;border-radius:1rem;border:none;cursor:pointer;font-size:1rem;box-shadow:0 8px 20px rgba(34,197,94,.25);transition:all .2s;">
+              <svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Accept £${counterPrice}
+            </button>
+            <button id="reject-btn" onclick="respondToOffer('reject')" style="width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;background:#fff;color:#374151;font-weight:600;padding:1rem;border-radius:1rem;border:2px solid #e5e7eb;cursor:pointer;font-size:1rem;transition:all .2s;" onmouseover="this.style.borderColor='#fecaca';this.style.color='#dc2626'" onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#374151'">
+              <svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Decline &amp; Return My Device
+            </button>
+          </div>
+
+          <p style="font-size:.75rem;color:#9ca3af;text-align:center;margin-top:1rem;">
+            Questions? Call us on <a href="tel:03333356679" style="color:#dc2626;font-weight:600;">03333356679</a> or email <a href="mailto:Support@cashmymobile.co.uk" style="color:#dc2626;font-weight:600;">Support@cashmymobile.co.uk</a>
+          </p>
+        </div>
+      `;
+
+      window.respondToOffer = async function(action) {
+        const btn = document.getElementById(action === 'accept' ? 'accept-btn' : 'reject-btn');
+        const otherBtn = document.getElementById(action === 'accept' ? 'reject-btn' : 'accept-btn');
+        const errorDiv = document.getElementById('offer-error');
+        errorDiv.style.display = 'none';
+        btn.disabled = true;
+        otherBtn.disabled = true;
+        btn.innerHTML = `<div style="width:1.25rem;height:1.25rem;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;"></div> Processing...`;
+
+        try {
+          const res = action === 'accept'
+            ? await counterOfferApi.accept(token)
+            : await counterOfferApi.reject(token);
+
+          if (res.success) {
+            const isAccepted = action === 'accept';
+            root.innerHTML = `
+              <div class="counter-card" style="text-align:center;">
+                <div style="width:4rem;height:4rem;background:${isAccepted ? '#f0fdf4' : '#f9fafb'};border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+                  <svg style="width:2rem;height:2rem;color:${isAccepted ? '#16a34a' : '#6b7280'}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <h2 style="font-size:1.5rem;font-weight:800;color:#111827;margin-bottom:.75rem;">
+                  ${isAccepted ? 'Offer Accepted!' : 'Offer Declined'}
+                </h2>
+                <p style="color:#6b7280;margin-bottom:1.5rem;font-size:.9375rem;">
+                  ${isAccepted
+                    ? `Great! We'll process your payment of <strong style="color:#16a34a">£${counterPrice}</strong> to your bank account shortly.`
+                    : "We'll return your device to you free of charge within 5 working days."}
+                </p>
+                ${isAccepted ? `
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:1rem;padding:1rem;margin-bottom:1.5rem;">
+                  <p style="font-size:.875rem;color:#166534;line-height:1.6;">Payment will be sent via UK bank transfer. You'll receive a confirmation email shortly.</p>
+                </div>` : `
+                <div style="background:#f9fafb;border:1px solid #f3f4f6;border-radius:1rem;padding:1rem;margin-bottom:1.5rem;">
+                  <p style="font-size:.875rem;color:#6b7280;line-height:1.6;">Your device will be returned to your registered address within 5 working days at no charge.</p>
+                </div>`}
+                <a href="index.html" class="btn-primary" style="display:inline-flex;padding:.75rem 2rem;">Back to Home</a>
+              </div>`;
+          } else {
+            document.getElementById('offer-error').style.display = 'block';
+            document.getElementById('offer-error-text').textContent = res.message || 'Failed to process your response. Please try again.';
+            btn.disabled = false;
+            otherBtn.disabled = false;
+            btn.innerHTML = action === 'accept'
+              ? `<svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Accept £${counterPrice}`
+              : `<svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Decline &amp; Return My Device`;
+          }
+        } catch (err) {
+          document.getElementById('offer-error').style.display = 'block';
+          document.getElementById('offer-error-text').textContent = 'An error occurred. Please try again or contact us.';
+          btn.disabled = false;
+          otherBtn.disabled = false;
+        }
+      };
+
+    } catch (err) {
+      root.innerHTML = `
+        <div class="status-state">
+          <div class="status-icon">${Icon.alertCircle}</div>
+          <p class="status-title">Unable to Load Offer</p>
+          <p class="status-msg">There was a problem loading your counter offer. Please check your internet connection and try again.</p>
+          <div class="status-actions">
+            <button class="btn-primary" style="padding:.5rem 1.5rem;font-size:.875rem;" onclick="loadCounterOffer()">Retry</button>
+            <a href="contact.html" class="btn-outline">Contact Us</a>
+          </div>
+        </div>`;
+    }
+  }
+
+  loadCounterOffer();
+</script>
+</body>
+</html>
