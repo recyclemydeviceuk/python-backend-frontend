@@ -383,6 +383,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=settings.PORT,
-        reload=settings.ENVIRONMENT == "development",
+        reload=os.environ.get("NODE_ENV", "production") == "development",
         log_level="info",
     )
