@@ -22,6 +22,20 @@ for d in ["logs", "uploads", "uploads/images", "uploads/csv", "exports"]:
     Path(d).mkdir(parents=True, exist_ok=True)
 
 
+async def _seed_admins():
+    from app.models.admin import Admin
+    from app.config.constants import AdminRole
+    emails = [e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()]
+    for email in emails:
+        exists = await Admin.find_one(Admin.email == email)
+        if not exists:
+            username = email.split("@")[0]
+            await Admin(email=email, username=username, role=AdminRole.ADMIN, is_active=True).insert()
+            logger.info(f"[Admin seed] Created admin: {email}")
+        else:
+            logger.info(f"[Admin seed] Already exists: {email}")
+
+
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +45,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"  Port        : {settings.PORT}")
     logger.info("=================================")
     await connect_db()
+    await _seed_admins()
     yield
     await close_db()
     logger.info("Server shut down gracefully.")
