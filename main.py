@@ -142,6 +142,16 @@ async def contact(request: Request):
     return templates.TemplateResponse("contact.html", {"request": request, "active_page": "contact"})
 
 
+@app.get("/complaint", tags=["Frontend"])
+async def complaint_get(request: Request):
+    return templates.TemplateResponse("complaint.html", {"request": request, "active_page": "complaint", "submitted": False})
+
+
+@app.post("/complaint", tags=["Frontend"])
+async def complaint_post(request: Request):
+    return templates.TemplateResponse("complaint.html", {"request": request, "active_page": "complaint", "submitted": True})
+
+
 @app.get("/faq", tags=["Frontend"])
 async def faq(request: Request):
     return templates.TemplateResponse("faq.html", {"request": request, "active_page": "faq"})
