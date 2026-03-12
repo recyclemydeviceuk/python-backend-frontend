@@ -17,9 +17,12 @@
     ('payment_statuses','Payment Statuses'),
   ] %}
   {% for tab_key, tab_label in tabs %}
-  <a href="/admin-panel/utilities?tab={{ tab_key }}"
-    style="padding:.5rem 1rem;border-radius:.625rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;
-    {% if active_tab == tab_key %}background:#fff;color:#dc2626;box-shadow:0 1px 3px rgba(0,0,0,.1);{% else %}color:#6b7280;{% endif %}">
+  {% if active_tab == tab_key %}
+  {% set tab_style = 'padding:.5rem 1rem;border-radius:.625rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;background:#fff;color:#dc2626;box-shadow:0 1px 3px rgba(0,0,0,.1);' %}
+  {% else %}
+  {% set tab_style = 'padding:.5rem 1rem;border-radius:.625rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;color:#6b7280;' %}
+  {% endif %}
+  <a href="/admin-panel/utilities?tab={{ tab_key }}" style="{{ tab_style }}">
     {{ tab_label }}
   </a>
   {% endfor %}
@@ -107,7 +110,12 @@
           {% endif %}
           <td>
             <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/toggle">
-              <button type="submit" class="btn btn-sm" style="padding:.375rem .5rem;{% if item.is_active %}background:#d1fae5;color:#059669;border:1px solid #a7f3d0;{% else %}background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;{% endif %}">
+              {% if item.is_active %}
+              {% set toggle_style = 'padding:.375rem .5rem;background:#d1fae5;color:#059669;border:1px solid #a7f3d0;' %}
+              {% else %}
+              {% set toggle_style = 'padding:.375rem .5rem;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;' %}
+              {% endif %}
+              <button type="submit" class="btn btn-sm" style="{{ toggle_style }}">
                 {{ 'Active' if item.is_active else 'Inactive' }}
               </button>
             </form>

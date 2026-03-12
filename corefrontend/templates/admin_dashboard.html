@@ -89,10 +89,15 @@
       <div class="card-header"><h3>Status Breakdown</h3></div>
       <div style="padding:.875rem 1.25rem;display:flex;flex-direction:column;gap:.625rem;">
         {% for status, count in status_breakdown %}
+        {% set bar_pct = ((count / stats.total_orders) * 100) | int if stats.total_orders > 0 else 0 %}
+        {% if status == 'PENDING' %}{% set sc = 'badge-yellow' %}
+        {% elif status in ['COMPLETED','PAID'] %}{% set sc = 'badge-green' %}
+        {% elif status == 'CANCELLED' %}{% set sc = 'badge-red' %}
+        {% else %}{% set sc = 'badge-blue' %}{% endif %}
         <div style="display:flex;align-items:center;gap:.75rem;">
-          <span class="badge {% if status == 'PENDING' %}badge-yellow{% elif status in ['COMPLETED','PAID'] %}badge-green{% elif status == 'CANCELLED' %}badge-red{% else %}badge-blue{% endif %}" style="flex-shrink:0;min-width:5rem;justify-content:center;">{{ status }}</span>
+          <span class="badge {{ sc }}" style="flex-shrink:0;min-width:5rem;justify-content:center;">{{ status }}</span>
           <div style="flex:1;background:#e5e7eb;border-radius:9999px;height:.375rem;">
-            <div style="background:#dc2626;height:.375rem;border-radius:9999px;width:{% if stats.total_orders > 0 %}{{ ((count / stats.total_orders) * 100) | int }}{% else %}0{% endif %}%;"></div>
+            <div style="background:#dc2626;height:.375rem;border-radius:9999px;width:{{ bar_pct }}%;"></div>
           </div>
           <span style="font-size:.75rem;font-weight:600;color:#6b7280;width:1.5rem;text-align:right;">{{ count }}</span>
         </div>
