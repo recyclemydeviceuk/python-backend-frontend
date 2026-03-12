@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Admin – Cash My Mobile{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f9fafb; color: #111827; height: 100vh; overflow: hidden; display: flex; }
+    a { text-decoration: none; color: inherit; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    input, select, textarea { font-family: inherit; }
+
+    /* ── Sidebar ── */
+    .admin-sidebar {
+      width: 256px; flex-shrink: 0; background: #fff; border-right: 1px solid #e5e7eb;
+      display: flex; flex-direction: column; height: 100vh; z-index: 40;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+    }
+    .sidebar-logo { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem 1rem; }
+    .sidebar-logo img { height: 2rem; width: auto; object-fit: contain; filter: brightness(0) saturate(100%) invert(27%) sepia(89%) saturate(4392%) hue-rotate(354deg) brightness(92%) contrast(93%); }
+    .sidebar-badge { margin: 0 1rem .75rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: .75rem; padding: .625rem .75rem; display: flex; align-items: center; gap: .625rem; }
+    .sidebar-badge-icon { width: 1.75rem; height: 1.75rem; border-radius: .5rem; background: linear-gradient(135deg,#ef4444,#b91c1c); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sidebar-badge-icon span { color: #fff; font-size: .625rem; font-weight: 900; }
+    .sidebar-badge-info { min-width: 0; flex: 1; }
+    .sidebar-badge-info p { font-size: .75rem; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sidebar-badge-info small { font-size: .625rem; color: #6b7280; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sidebar-badge-dot { width: .5rem; height: .5rem; background: #34d399; border-radius: 50%; flex-shrink: 0; }
+    .sidebar-nav-label { font-size: .625rem; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: .1em; padding: 0 .75rem .5rem 1rem; }
+    .sidebar-nav { flex: 1; padding: 0 .75rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-bottom: 1rem; }
+    .nav-item { display: flex; align-items: center; gap: .75rem; padding: .625rem .75rem; border-radius: .75rem; font-size: .875rem; font-weight: 500; color: #374151; transition: all .15s; position: relative; }
+    .nav-item:hover { background: #f3f4f6; color: #111827; }
+    .nav-item.active { background: linear-gradient(135deg,#dc2626,#b91c1c); color: #fff; box-shadow: 0 4px 12px rgba(220,38,38,.3); }
+    .nav-item svg { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+    .nav-item .chevron { width: .875rem; height: .875rem; margin-left: auto; opacity: .6; }
+    .sidebar-footer { border-top: 1px solid #e5e7eb; padding: .75rem; display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-footer-btn { display: flex; align-items: center; gap: .75rem; padding: .625rem .75rem; border-radius: .75rem; font-size: .875rem; font-weight: 500; color: #374151; transition: all .15s; width: 100%; text-align: left; }
+    .sidebar-footer-btn:hover { background: #fef2f2; color: #dc2626; }
+    .sidebar-footer-btn svg { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+
+    /* ── Main area ── */
+    .admin-main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; min-width: 0; }
+    .admin-topbar { background: #fff; border-bottom: 1px solid #e5e7eb; height: 3.5rem; display: flex; align-items: center; gap: 1rem; padding: 0 1.5rem; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .admin-topbar h1 { font-size: 1rem; font-weight: 600; color: #111827; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-user { display: flex; align-items: center; gap: .5rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 9999px; padding: .25rem .75rem .25rem .25rem; }
+    .topbar-avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; background: linear-gradient(135deg,#ef4444,#b91c1c); display: flex; align-items: center; justify-content: center; color: #fff; font-size: .75rem; font-weight: 700; }
+    .topbar-user span { font-size: .75rem; font-weight: 500; color: #374151; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-content { flex: 1; overflow-y: auto; padding: 1.5rem; }
+
+    /* ── Cards ── */
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb; }
+    .card-header h2, .card-header h3 { font-size: .9375rem; font-weight: 600; color: #111827; }
+    .card-body { padding: 1.25rem; }
+
+    /* ── Stat cards ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .stat-icon { width: 2.25rem; height: 2.25rem; border-radius: .75rem; display: flex; align-items: center; justify-content: center; margin-bottom: .75rem; }
+    .stat-icon svg { width: 1.25rem; height: 1.25rem; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #111827; }
+    .stat-label { font-size: .875rem; color: #6b7280; font-weight: 500; margin-top: .125rem; }
+    .stat-sub { font-size: .75rem; color: #9ca3af; margin-top: .125rem; }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; min-width: 800px; }
+    thead { background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+    th { text-align: left; padding: .75rem 1rem; font-size: .75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+    td { padding: .875rem 1rem; border-bottom: 1px solid #f3f4f6; color: #111827; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+
+    /* ── Badges ── */
+    .badge { display: inline-flex; align-items: center; font-size: .75rem; font-weight: 600; padding: .25rem .625rem; border-radius: 9999px; white-space: nowrap; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-red { background: #fee2e2; color: #dc2626; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+    .badge-purple { background: #ede9fe; color: #7c3aed; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+    .badge-yellow { background: #fef9c3; color: #a16207; }
+    .badge-emerald { background: #d1fae5; color: #065f46; }
+
+    /* ── Buttons ── */
+    .btn { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem .875rem; border-radius: .75rem; font-size: .875rem; font-weight: 600; transition: all .15s; cursor: pointer; border: none; }
+    .btn svg { width: 1rem; height: 1rem; }
+    .btn-red { background: #dc2626; color: #fff; }
+    .btn-red:hover { background: #b91c1c; }
+    .btn-gray { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+    .btn-gray:hover { background: #f9fafb; }
+    .btn-green { background: #16a34a; color: #fff; }
+    .btn-green:hover { background: #15803d; }
+    .btn-orange { background: #ea580c; color: #fff; }
+    .btn-orange:hover { background: #c2410c; }
+    .btn-sm { padding: .375rem .625rem; font-size: .8125rem; }
+
+    /* ── Form fields ── */
+    .field-label { font-size: .75rem; font-weight: 600; color: #374151; display: block; margin-bottom: .375rem; }
+    .field-input { width: 100%; background: #fff; border: 1px solid #d1d5db; border-radius: .625rem; padding: .5rem .75rem; font-size: .875rem; color: #111827; transition: border .15s; outline: none; }
+    .field-input:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
+    .field-textarea { resize: vertical; min-height: 100px; }
+    select.field-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .5rem center; background-size: 1rem; padding-right: 2rem; }
+
+    /* ── Search ── */
+    .search-wrap { position: relative; }
+    .search-wrap svg { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); width: 1rem; height: 1rem; color: #9ca3af; }
+    .search-input { padding-left: 2.5rem; }
+
+    /* ── Alert ── */
+    .alert { display: flex; align-items: flex-start; gap: .75rem; padding: .875rem 1rem; border-radius: .75rem; font-size: .875rem; }
+    .alert-red { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .alert-green { background: #f0fdf4; border: 1px solid #bbf7d0; color: #14532d; }
+    .alert-yellow { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alert svg { width: 1.125rem; height: 1.125rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Pagination ── */
+    .pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; }
+    .pagination-info { font-size: .875rem; color: #6b7280; }
+    .pagination-btns { display: flex; gap: .5rem; }
+
+    /* ── Flash messages ── */
+    .flash { padding: .75rem 1rem; border-radius: .75rem; margin-bottom: 1rem; font-size: .875rem; font-weight: 500; }
+    .flash-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+    .flash-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+
+    /* ── Mobile overlay ── */
+    .mobile-overlay { display: none; }
+    @media (max-width: 1023px) {
+      .admin-sidebar { position: fixed; top: 0; left: 0; transform: translateX(-100%); transition: transform .3s; }
+      .admin-sidebar.open { transform: translateX(0); }
+      .mobile-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 30; }
+      .admin-topbar .hamburger { display: flex; }
+    }
+    .hamburger { display: none; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: .5rem; color: #6b7280; }
+    .hamburger:hover { background: #f3f4f6; }
+    .hamburger svg { width: 1.25rem; height: 1.25rem; }
+
+    /* ── Misc ── */
+    .divider { height: 1px; background: #e5e7eb; margin: .75rem 0; }
+    .empty-state { text-align: center; padding: 3rem 1rem; }
+    .empty-state svg { width: 3rem; height: 3rem; color: #d1d5db; margin: 0 auto .75rem; }
+    .empty-state p { color: #6b7280; font-weight: 500; }
+    .empty-state small { color: #9ca3af; font-size: .8125rem; }
+    .text-red { color: #dc2626; }
+    .font-mono { font-family: 'Courier New', monospace; font-size: .8125rem; }
+    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if not hide_sidebar %}
+<aside class="admin-sidebar" id="admin-sidebar">
+  <div class="sidebar-logo">
+    <a href="/" target="_blank">
+      <img src="https://res.cloudinary.com/dn2sab6qc/image/upload/v1772457689/CMM-Logo_kid8km.png" alt="Cash My Mobile" />
+    </a>
+  </div>
+  <div class="sidebar-badge">
+    <div class="sidebar-badge-icon"><span>A</span></div>
+    <div class="sidebar-badge-info">
+      <p>Admin Panel</p>
+      <small>{{ admin_email or 'admin' }}</small>
+    </div>
+    <div class="sidebar-badge-dot"></div>
+  </div>
+  <div style="padding:0 .75rem .375rem;">
+    <p class="sidebar-nav-label">Navigation</p>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="/admin-panel" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+      {% if active_page == 'dashboard' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+    <a href="/admin-panel/orders" class="nav-item {% if active_page == 'orders' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+      Orders
+      {% if active_page == 'orders' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+    <a href="/admin-panel/devices" class="nav-item {% if active_page == 'devices' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      Devices
+      {% if active_page == 'devices' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+    <a href="/admin-panel/pricing" class="nav-item {% if active_page == 'pricing' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Pricing Feed
+      {% if active_page == 'pricing' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+    <a href="/admin-panel/utilities" class="nav-item {% if active_page == 'utilities' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07"/><path d="M19.07 19.07A10 10 0 0 0 4.93 4.93"/></svg>
+      Utilities
+      {% if active_page == 'utilities' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+    <a href="/admin-panel/api-gateway" class="nav-item {% if active_page == 'api-gateway' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg>
+      API Gateway
+      {% if active_page == 'api-gateway' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+    <a href="/admin-panel/partners" class="nav-item {% if active_page == 'partners' %}active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Partners
+      {% if active_page == 'partners' %}<svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>{% endif %}
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="/" target="_blank" class="sidebar-footer-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      View Website
+    </a>
+    <form method="post" action="/admin-panel/logout">
+      <button type="submit" class="sidebar-footer-btn" style="width:100%">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Logout
+      </button>
+    </form>
+  </div>
+</aside>
+{% endif %}
+
+<div class="admin-main">
+  {% if not hide_sidebar %}
+  <header class="admin-topbar">
+    <button class="hamburger" id="hamburger-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <h1>{% block page_title %}{% endblock %}</h1>
+    <div class="topbar-user">
+      <div class="topbar-avatar">A</div>
+      <span>{{ (admin_email or 'admin').split('@')[0] }}</span>
+    </div>
+  </header>
+  {% endif %}
+  <main class="admin-content">
+    {% if flash_success %}
+    <div class="flash flash-success">{{ flash_success }}</div>
+    {% endif %}
+    {% if flash_error %}
+    <div class="flash flash-error">{{ flash_error }}</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<script>
+  (function() {
+    const sidebar = document.getElementById('admin-sidebar');
+    const btn = document.getElementById('hamburger-btn');
+    if (!sidebar || !btn) return;
+    let overlay = null;
+    btn.addEventListener('click', function() {
+      sidebar.classList.toggle('open');
+      if (sidebar.classList.contains('open')) {
+        overlay = document.createElement('div');
+        overlay.className = 'mobile-overlay';
+        overlay.addEventListener('click', function() { sidebar.classList.remove('open'); overlay.remove(); });
+        document.body.appendChild(overlay);
+      } else if (overlay) { overlay.remove(); }
+    });
+  })();
+</script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,148 @@
+{% extends "admin_base.html" %}
+{% block title %}API Gateway – Admin{% endblock %}
+{% block page_title %}API Gateway{% endblock %}
+
+{% block content %}
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Integration endpoint for direct order placement from partners</p>
+
+<!-- Stats -->
+<div class="stat-grid" style="margin-bottom:1.5rem;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#dbeafe;">
+      <svg style="color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    </div>
+    <div class="stat-value">{{ stats.total }}</div>
+    <div class="stat-label">Total Requests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#d1fae5;">
+      <svg style="color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="stat-value">{{ stats.successful }}</div>
+    <div class="stat-label">Successful</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#fee2e2;">
+      <svg style="color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    </div>
+    <div class="stat-value">{{ stats.failed }}</div>
+    <div class="stat-label">Failed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#ffedd5;">
+      <svg style="color:#ea580c" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div class="stat-value">{{ stats.avg_response }}ms</div>
+    <div class="stat-label">Avg Response</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+
+  <!-- Endpoint Info -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem;">
+    <div class="card">
+      <div class="card-header"><h3>Endpoint Reference</h3></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:.875rem;">
+          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.375rem;">Endpoint</p>
+          <code style="font-size:.875rem;font-weight:700;color:#dc2626;font-family:monospace;">POST /decisiontech</code>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:.875rem;">
+          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Authentication</p>
+          <code style="font-size:.8125rem;font-family:monospace;color:#374151;display:block;">X-Partner-Key: your_api_key</code>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:.875rem;">
+          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Sample Payload</p>
+          <pre style="font-size:.75rem;font-family:monospace;color:#374151;white-space:pre-wrap;line-height:1.6;">{
+  "customer_name": "John Smith",
+  "customer_phone": "07700900000",
+  "customer_email": "john@example.com",
+  "customer_address": "12 Baker St, London",
+  "postage_method": "label",
+  "bank_name": "Barclays",
+  "account_number": "12345678",
+  "sort_code": "20-00-00",
+  "device_id": "...",
+  "device_name": "Apple iPhone 16 Pro",
+  "network": "Unlocked",
+  "offered_price": 655,
+  "device_grade": "GOOD",
+  "storage": "256GB"
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Info -->
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <svg style="width:1.125rem;height:1.125rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <h3>Security</h3>
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.625rem;">
+        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
+          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          API key required in <code style="background:#f3f4f6;padding:.125rem .375rem;border-radius:.25rem;">X-Partner-Key</code> header
+        </div>
+        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
+          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Rate limiting: 100 requests/minute per partner
+        </div>
+        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
+          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          All requests logged with IP and response time
+        </div>
+        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
+          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Manage keys in <a href="/admin-panel/partners" style="color:#dc2626;font-weight:600;">Partners</a> section
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Logs -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Recent API Logs</h3>
+      <span style="font-size:.75rem;color:#6b7280;">Last {{ logs | length }} requests</span>
+    </div>
+    {% if logs %}
+    <div style="max-height:600px;overflow-y:auto;">
+      {% for log in logs %}
+      <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1.25rem;border-bottom:1px solid #f3f4f6;">
+        {% if log.success %}
+        <svg style="width:1rem;height:1rem;color:#059669;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        {% else %}
+        <svg style="width:1rem;height:1rem;color:#dc2626;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        {% endif %}
+        <div style="flex:1;min-width:0;">
+          <p style="font-size:.8125rem;font-weight:600;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {% if log.success %}{{ log.order_number or 'Success' }}{% else %}{{ log.error or 'Failed' }}{% endif %}
+          </p>
+          <p style="font-size:.75rem;color:#6b7280;margin-top:.125rem;">
+            {{ log.source_ip or '—' }} · {{ log.response_time or 0 }}ms
+            {% if log.partner_name %} · <span style="color:#7c3aed;font-weight:500;">{{ log.partner_name }}</span>{% endif %}
+          </p>
+          <p style="font-size:.6875rem;color:#9ca3af;margin-top:.125rem;">{{ log.created_at.strftime('%d %b %Y %H:%M') if log.created_at else '' }}</p>
+        </div>
+        <span style="font-size:.6875rem;font-weight:700;padding:.25rem .5rem;border-radius:.375rem;flex-shrink:0;
+          {% if log.status_code and log.status_code < 300 %}background:#d1fae5;color:#065f46;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">
+          {{ log.status_code or '?' }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+      <p>No API requests yet</p>
+      <small>Logs will appear here once partners start sending requests</small>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

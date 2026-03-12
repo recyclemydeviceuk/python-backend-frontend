@@ -68,6 +68,10 @@ app.mount("/exports", StaticFiles(directory="exports"), name="exports")
 # ── API Routes ─────────────────────────────────────────────────────────────────
 app.include_router(api_router, prefix="/api")
 
+# ── Admin Panel SSR Routes ──────────────────────────────────────────────────────
+from app.routers.admin_panel import router as admin_panel_router
+app.include_router(admin_panel_router)
+
 # ── Frontend Static Files ──────────────────────────────────────────────────────
 _frontend_dir = Path(__file__).parent / "corefrontend"
 _templates_dir = _frontend_dir / "templates"

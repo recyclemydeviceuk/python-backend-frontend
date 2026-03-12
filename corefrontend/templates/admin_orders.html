@@ -1,0 +1,143 @@
+{% extends "admin_base.html" %}
+{% block title %}Orders – Admin{% endblock %}
+{% block page_title %}Orders{% endblock %}
+
+{% block content %}
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage all incoming orders from website and API</p>
+
+<!-- Controls -->
+<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;">
+  <form method="get" action="/admin-panel/orders" style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;">
+    <div class="search-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" name="q" class="field-input search-input" placeholder="Search orders, customer, device…" value="{{ q or '' }}" style="width:220px;" />
+    </div>
+    <select name="status" class="field-input" style="width:160px;">
+      <option value="">All Statuses</option>
+      {% for s in order_statuses %}
+      <option value="{{ s.value or s.name }}" {% if status_filter == (s.value or s.name) %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-gray btn-sm">Filter</button>
+    {% if q or status_filter %}
+    <a href="/admin-panel/orders" class="btn btn-sm" style="color:#dc2626;border:1px solid #fecaca;background:#fef2f2;">✕ Clear</a>
+    {% endif %}
+    <span style="font-size:.875rem;color:#6b7280;">{{ total }} orders</span>
+  </form>
+  <div style="display:flex;gap:.5rem;">
+    <a href="/admin-panel/orders?{{ request.query_string.decode() }}&export=csv" class="btn btn-gray btn-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </a>
+  </div>
+</div>
+
+<!-- Quick Status Filters -->
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+  <a href="/admin-panel/orders{% if q %}?q={{ q | urlencode }}{% endif %}"
+    class="badge {% if not status_filter %}badge-red{% else %}badge-gray{% endif %}"
+    style="padding:.375rem .75rem;cursor:pointer;">All ({{ total_all }})</a>
+  {% for s in order_statuses %}
+  {% set cnt = status_counts.get(s.value or s.name, 0) %}
+  {% if cnt > 0 %}
+  <a href="/admin-panel/orders?status={{ (s.value or s.name) | urlencode }}{% if q %}&q={{ q | urlencode }}{% endif %}"
+    class="badge {% if status_filter == (s.value or s.name) %}badge-red{% else %}badge-gray{% endif %}"
+    style="padding:.375rem .75rem;cursor:pointer;">{{ s.name }} ({{ cnt }})</a>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Table -->
+<div class="card">
+  {% if orders %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Customer</th>
+          <th>Device</th>
+          <th>Grade</th>
+          <th>£ Offered</th>
+          <th>Source</th>
+          <th>Status</th>
+          <th>Payment</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td><a href="/admin-panel/orders/{{ o.id }}" style="font-weight:600;color:#dc2626;">#{{ o.order_number }}</a></td>
+          <td>
+            <p style="font-weight:500;">{{ o.customer_name }}</p>
+            <p style="font-size:.75rem;color:#6b7280;">{{ o.customer_phone }}</p>
+          </td>
+          <td>
+            <p>{{ o.device_name }}</p>
+            <p style="font-size:.75rem;color:#6b7280;">{{ o.storage or '' }}{% if o.storage and o.network %} · {% endif %}{{ o.network or '' }}</p>
+          </td>
+          <td>
+            <span class="badge {% if o.device_grade == 'NEW' %}badge-green{% elif o.device_grade == 'GOOD' %}badge-blue{% else %}badge-red{% endif %}">{{ o.device_grade }}</span>
+          </td>
+          <td style="font-weight:600;">£{{ o.offered_price }}</td>
+          <td>
+            <span class="badge {% if o.source == 'API' %}badge-purple{% else %}badge-blue{% endif %}">{{ o.source }}</span>
+            {% if o.partner_name %}
+            <p style="font-size:.6875rem;color:#7c3aed;font-weight:600;margin-top:.25rem;">{{ o.partner_name }}</p>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge {% if o.status == 'PENDING' %}badge-yellow{% elif o.status in ['COMPLETED','PAID'] %}badge-green{% elif o.status == 'CANCELLED' %}badge-red{% elif o.status == 'RECEIVED' %}badge-blue{% else %}badge-gray{% endif %}">{{ o.status }}</span>
+          </td>
+          <td>
+            <span class="badge {% if o.payment_status == 'PAID' %}badge-green{% elif o.payment_status == 'PENDING' %}badge-yellow{% else %}badge-gray{% endif %}">{{ o.payment_status or 'PENDING' }}</span>
+          </td>
+          <td style="font-size:.75rem;color:#6b7280;white-space:nowrap;">{{ o.created_at.strftime('%d/%m/%Y') if o.created_at else '' }}</td>
+          <td>
+            <div style="display:flex;gap:.25rem;">
+              <a href="/admin-panel/orders/{{ o.id }}" class="btn btn-gray btn-sm" style="padding:.375rem .5rem;" title="View">
+                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </a>
+              <form method="post" action="/admin-panel/orders/{{ o.id }}/delete" onsubmit="return confirm('Delete this order?')">
+                <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.375rem .5rem;" title="Delete">
+                  <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <div class="pagination" style="padding:1rem 1.25rem;">
+    <p class="pagination-info">Page {{ page }} of {{ total_pages }} · {{ total }} orders</p>
+    <div class="pagination-btns">
+      {% if page > 1 %}
+      <a href="/admin-panel/orders?page={{ page - 1 }}{% if q %}&q={{ q | urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter | urlencode }}{% endif %}" class="btn btn-gray btn-sm">
+        <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Prev
+      </a>
+      {% endif %}
+      {% if page < total_pages %}
+      <a href="/admin-panel/orders?page={{ page + 1 }}{% if q %}&q={{ q | urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter | urlencode }}{% endif %}" class="btn btn-gray btn-sm">
+        Next <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-state">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+    <p>No orders found</p>
+    <small>Try adjusting your search or filters</small>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

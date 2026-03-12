@@ -1,0 +1,135 @@
+{% extends "admin_base.html" %}
+{% block title %}Utilities – Admin{% endblock %}
+{% block page_title %}Utilities{% endblock %}
+
+{% block content %}
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage lookup data: storage, conditions, networks, brands, categories and statuses</p>
+
+<!-- Tab Navigation -->
+<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:1.25rem;background:#f3f4f6;padding:.25rem;border-radius:.875rem;width:fit-content;">
+  {% set tabs = [
+    ('storage','Storage Options'),
+    ('conditions','Conditions'),
+    ('networks','Networks'),
+    ('brands','Brands'),
+    ('categories','Categories'),
+    ('order_statuses','Order Statuses'),
+    ('payment_statuses','Payment Statuses'),
+  ] %}
+  {% for tab_key, tab_label in tabs %}
+  <a href="/admin-panel/utilities?tab={{ tab_key }}"
+    style="padding:.5rem 1rem;border-radius:.625rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;
+    {% if active_tab == tab_key %}background:#fff;color:#dc2626;box-shadow:0 1px 3px rgba(0,0,0,.1);{% else %}color:#6b7280;{% endif %}">
+    {{ tab_label }}
+  </a>
+  {% endfor %}
+</div>
+
+{% set tab_descriptions = {
+  'storage': 'Storage sizes shown to customers during the quoting process.',
+  'conditions': 'Device condition grades used when quoting and receiving devices.',
+  'networks': 'Network carriers that devices can be locked to.',
+  'brands': 'Mobile phone and device brand manufacturers.',
+  'categories': 'Device type categories for organizing products.',
+  'order_statuses': 'Order workflow statuses shown on the orders page.',
+  'payment_statuses': 'Payment statuses used to track order payment.',
+} %}
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h3>{{ dict(tabs)[active_tab] if active_tab in dict(tabs) else '' }}</h3>
+      <p style="font-size:.8125rem;color:#6b7280;margin-top:.25rem;">{{ tab_descriptions.get(active_tab, '') }}</p>
+    </div>
+    <button onclick="document.getElementById('add-form').style.display='flex'" class="btn btn-red btn-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add New
+    </button>
+  </div>
+
+  <!-- Add Form -->
+  <div id="add-form" style="display:none;padding:1rem 1.25rem;border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+    <form method="post" action="/admin-panel/utilities/{{ active_tab }}/add" style="display:flex;align-items:flex-end;gap:.75rem;flex-wrap:wrap;">
+      <div>
+        <label class="field-label">Name <span style="color:#dc2626">*</span></label>
+        <input type="text" name="name" class="field-input" placeholder="Enter name…" style="width:200px;" required />
+      </div>
+      {% if active_tab in ['order_statuses', 'payment_statuses'] %}
+      <div>
+        <label class="field-label">Value (code)</label>
+        <input type="text" name="value" class="field-input" placeholder="e.g. PENDING" style="width:140px;" />
+      </div>
+      <div>
+        <label class="field-label">Badge Color Classes</label>
+        <input type="text" name="color" class="field-input" placeholder="e.g. bg-yellow-100 text-yellow-700" style="width:220px;" />
+      </div>
+      {% endif %}
+      <button type="submit" class="btn btn-green btn-sm">Add</button>
+      <button type="button" onclick="document.getElementById('add-form').style.display='none'" class="btn btn-gray btn-sm">Cancel</button>
+    </form>
+  </div>
+
+  <!-- Items List -->
+  {% if items %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:2.5rem;">#</th>
+          <th>Name</th>
+          {% if active_tab in ['order_statuses','payment_statuses'] %}<th>Value</th><th>Badge</th>{% endif %}
+          <th>Active</th>
+          <th style="width:160px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr id="row-{{ item.id }}">
+          <td style="color:#9ca3af;font-size:.75rem;">{{ loop.index }}</td>
+          <td>
+            <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/update" style="display:flex;align-items:center;gap:.5rem;">
+              <input type="text" name="name" value="{{ item.name }}" class="field-input" style="width:180px;padding:.375rem .5rem;" />
+              {% if active_tab in ['order_statuses','payment_statuses'] %}
+              <input type="text" name="value" value="{{ item.value or '' }}" class="field-input" style="width:130px;padding:.375rem .5rem;" placeholder="CODE" />
+              <input type="text" name="color" value="{{ item.color or '' }}" class="field-input" style="width:200px;padding:.375rem .5rem;" placeholder="bg-... text-..." />
+              {% endif %}
+              <button type="submit" class="btn btn-sm" style="background:#d1fae5;color:#059669;border:1px solid #a7f3d0;padding:.375rem .5rem;" title="Save">
+                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+            </form>
+          </td>
+          {% if active_tab in ['order_statuses','payment_statuses'] %}
+          <td></td><td>
+            {% if item.color %}
+            <span style="font-size:.6875rem;padding:.25rem .625rem;border-radius:9999px;" class="{{ item.color }}">{{ item.name }}</span>
+            {% endif %}
+          </td>
+          {% endif %}
+          <td>
+            <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/toggle">
+              <button type="submit" class="btn btn-sm" style="padding:.375rem .5rem;{% if item.is_active %}background:#d1fae5;color:#059669;border:1px solid #a7f3d0;{% else %}background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;{% endif %}">
+                {{ 'Active' if item.is_active else 'Inactive' }}
+              </button>
+            </form>
+          </td>
+          <td>
+            <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/delete" onsubmit="return confirm('Delete {{ item.name }}?')" style="display:inline;">
+              <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.375rem .5rem;">
+                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07"/><path d="M19.07 19.07A10 10 0 0 0 4.93 4.93"/></svg>
+    <p>No items yet</p>
+    <small>Click "Add New" to create the first entry</small>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

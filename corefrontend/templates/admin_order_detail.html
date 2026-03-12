@@ -1,0 +1,224 @@
+{% extends "admin_base.html" %}
+{% block title %}Order #{{ order.order_number }} – Admin{% endblock %}
+{% block page_title %}Order #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1rem;font-weight:500;">Created {{ order.created_at.strftime('%d %b %Y, %H:%M') if order.created_at else '' }}</p>
+
+<!-- Back + Actions -->
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
+  <a href="/admin-panel/orders" style="display:flex;align-items:center;gap:.375rem;font-size:.875rem;color:#6b7280;">
+    <svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Orders
+  </a>
+  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+    {% if order.status not in ['CANCELLED','COMPLETED','PAID'] %}
+    <a href="/admin-panel/orders/{{ order.id }}/counter-offer" class="btn btn-orange btn-sm">
+      <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Counter Offer
+    </a>
+    {% endif %}
+    <span class="badge {% if order.status == 'PENDING' %}badge-yellow{% elif order.status in ['COMPLETED','PAID'] %}badge-green{% elif order.status == 'CANCELLED' %}badge-red{% else %}badge-blue{% endif %}">{{ order.status }}</span>
+    {% if order.source == 'API' %}<span class="badge badge-purple">API Order</span>{% endif %}
+    {% if order.partner_name %}<span class="badge badge-blue">{{ order.partner_name }}</span>{% endif %}
+  </div>
+</div>
+
+<!-- Status Timeline -->
+<div class="card" style="margin-bottom:1.25rem;">
+  <div class="card-header"><h3>Order Progress</h3></div>
+  <div style="padding:1rem 1.25rem;overflow-x:auto;">
+    <div style="display:flex;align-items:center;gap:.25rem;min-width:max-content;">
+      {% for s in status_flow %}
+      {% set sv = s.value or s.name %}
+      {% set is_active = sv == order.status %}
+      {% set is_done = loop.index0 < current_status_idx and order.status != 'CANCELLED' %}
+      <form method="post" action="/admin-panel/orders/{{ order.id }}/status" style="display:inline;">
+        <input type="hidden" name="status" value="{{ sv }}" />
+        <button type="submit" style="display:flex;flex-direction:column;align-items:center;gap:.375rem;padding:.5rem .75rem;border-radius:.75rem;cursor:pointer;border:none;transition:all .15s;
+          {% if is_active %}background:#dc2626;color:#fff;box-shadow:0 4px 12px rgba(220,38,38,.3);{% elif is_done %}background:#d1fae5;color:#065f46;{% else %}background:#f3f4f6;color:#6b7280;{% endif %}">
+          {% if is_active %}
+          <svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          {% elif is_done %}
+          <svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          {% else %}
+          <div style="width:1rem;height:1rem;border-radius:50%;border:2px solid currentColor;"></div>
+          {% endif %}
+          <span style="font-size:.625rem;font-weight:600;max-width:80px;text-align:center;line-height:1.3;">{{ s.name }}</span>
+        </button>
+      </form>
+      {% if not loop.last %}
+      <div style="width:1.5rem;height:2px;flex-shrink:0;{% if loop.index0 < current_status_idx and order.status != 'CANCELLED' %}background:#34d399;{% else %}background:#d1d5db;{% endif %}"></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Main Grid -->
+<div style="display:grid;grid-template-columns:1fr 1fr 320px;gap:1.25rem;">
+
+  <!-- Customer -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <div style="width:1.75rem;height:1.75rem;background:#dbeafe;border-radius:.5rem;display:flex;align-items:center;justify-content:center;">
+          <svg style="width:.875rem;height:.875rem;color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <h3>Customer Details</h3>
+      </div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:.625rem;">
+      {% macro row(label, value) %}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;">
+        <span style="font-size:.75rem;color:#6b7280;flex-shrink:0;">{{ label }}</span>
+        <span style="font-size:.875rem;font-weight:500;text-align:right;word-break:break-all;">{{ value or '—' }}</span>
+      </div>
+      {% endmacro %}
+      {{ row('Name', order.customer_name) }}
+      {{ row('Phone', order.customer_phone) }}
+      {{ row('Email', order.customer_email) }}
+      {{ row('Address', order.customer_address) }}
+    </div>
+  </div>
+
+  <!-- Device -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <div style="width:1.75rem;height:1.75rem;background:#ffedd5;border-radius:.5rem;display:flex;align-items:center;justify-content:center;">
+          <svg style="width:.875rem;height:.875rem;color:#ea580c" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        </div>
+        <h3>Device Details</h3>
+      </div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:.625rem;">
+      <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Device</span><span style="font-size:.875rem;font-weight:500;">{{ order.device_name }}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Network</span><span style="font-size:.875rem;font-weight:500;">{{ order.network or '—' }}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Storage</span><span style="font-size:.875rem;font-weight:500;">{{ order.storage or '—' }}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:.75rem;color:#6b7280;">Grade</span>
+        <span class="badge {% if order.device_grade == 'NEW' %}badge-green{% elif order.device_grade == 'GOOD' %}badge-blue{% else %}badge-red{% endif %}">{{ order.device_grade }}</span>
+      </div>
+      <div class="divider"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+          <p style="font-size:.75rem;color:#6b7280;margin-bottom:.25rem;">Offered Price</p>
+          <p style="font-size:1.5rem;font-weight:700;color:#111827;">£{{ order.offered_price }}</p>
+        </div>
+        <div>
+          <p style="font-size:.75rem;color:#6b7280;margin-bottom:.25rem;">Final Price</p>
+          <p style="font-size:1.5rem;font-weight:700;{% if order.final_price and order.final_price < order.offered_price %}color:#ea580c;{% else %}color:#059669;{% endif %}">
+            £{{ order.final_price or order.offered_price }}
+            {% if order.final_price and order.final_price < order.offered_price %}<span style="font-size:.8125rem;font-weight:400;"> revised</span>{% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Payment + Postage + Meta -->
+  <div style="display:flex;flex-direction:column;gap:1.25rem;">
+    <!-- Payment -->
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <div style="width:1.75rem;height:1.75rem;background:#d1fae5;border-radius:.5rem;display:flex;align-items:center;justify-content:center;">
+            <svg style="width:.875rem;height:.875rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          </div>
+          <h3>Payment</h3>
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:.75rem;color:#6b7280;">Status</span>
+          <span class="badge {% if order.payment_status == 'PAID' %}badge-green{% elif order.payment_status == 'PENDING' %}badge-yellow{% else %}badge-gray{% endif %}">{{ order.payment_status or 'PENDING' }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Bank</span><span style="font-size:.8125rem;font-weight:500;">{{ order.payout_bank_name or '—' }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Account</span><span style="font-size:.8125rem;font-family:monospace;">{{ order.payout_account_number or '—' }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Sort Code</span><span style="font-size:.8125rem;font-family:monospace;">{{ order.payout_sort_code or '—' }}</span></div>
+        {% if order.transaction_id %}
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Txn ID</span><span style="font-size:.6875rem;font-family:monospace;color:#6b7280;">{{ order.transaction_id }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Postage -->
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <div style="width:1.75rem;height:1.75rem;background:#ede9fe;border-radius:.5rem;display:flex;align-items:center;justify-content:center;">
+            <svg style="width:.875rem;height:.875rem;color:#7c3aed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <h3>Postage</h3>
+        </div>
+      </div>
+      <div class="card-body">
+        <span class="badge {% if order.postage_method == 'label' %}badge-blue{% else %}badge-purple{% endif %}">
+          {{ 'Label (customer prints)' if order.postage_method == 'label' else 'Postbag (we send pack)' }}
+        </span>
+        {% if order.postage_method == 'postbag' and order.status == 'PENDING' %}
+        <div style="margin-top:.625rem;display:flex;align-items:center;gap:.375rem;font-size:.75rem;color:#ea580c;">
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Action required: Send postbag to customer
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Metadata -->
+    <div class="card">
+      <div class="card-header"><h3>Metadata</h3></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.5rem;">
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Order #</span><span style="font-size:.8125rem;font-family:monospace;">#{{ order.order_number }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Source</span><span style="font-size:.8125rem;font-weight:500;">{{ order.source }}</span></div>
+        {% if order.partner_name %}
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Partner</span><span style="font-size:.8125rem;font-weight:600;color:#7c3aed;">{{ order.partner_name }}</span></div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Created</span><span style="font-size:.75rem;">{{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '' }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Updated</span><span style="font-size:.75rem;">{{ order.updated_at.strftime('%d/%m/%Y %H:%M') if order.updated_at else '' }}</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Price Revision Reason -->
+{% if order.price_revision_reason %}
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-header">
+    <div style="display:flex;align-items:center;gap:.5rem;">
+      <div style="width:1.75rem;height:1.75rem;background:#fffbeb;border-radius:.5rem;display:flex;align-items:center;justify-content:center;">
+        <svg style="width:.875rem;height:.875rem;color:#d97706" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <h3>Price Revision Reason</h3>
+    </div>
+  </div>
+  <div class="card-body"><p style="font-size:.875rem;color:#374151;">{{ order.price_revision_reason }}</p></div>
+</div>
+{% endif %}
+
+<!-- Counter Offer Form (inline, shown when no existing counter offer) -->
+{% if show_counter_form %}
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-header">
+    <h3 style="color:#ea580c;">Send Counter Offer</h3>
+  </div>
+  <form method="post" action="/admin-panel/orders/{{ order.id }}/counter-offer">
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div>
+        <label class="field-label">Revised Price (£) <span style="color:#dc2626">*</span></label>
+        <input type="number" name="counter_price" class="field-input" placeholder="e.g. 120" min="1" step="0.01" required />
+      </div>
+      <div>
+        <label class="field-label">Reason <span style="color:#dc2626">*</span></label>
+        <input type="text" name="reason" class="field-input" placeholder="Reason for revised price" required />
+      </div>
+    </div>
+    <div style="padding:0 1.25rem 1.25rem;display:flex;gap:.75rem;">
+      <button type="submit" class="btn btn-orange">Send Counter Offer</button>
+      <a href="/admin-panel/orders/{{ order.id }}" class="btn btn-gray">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% endblock %}

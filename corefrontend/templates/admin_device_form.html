@@ -1,0 +1,150 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ 'Edit' if device else 'Add' }} Device – Admin{% endblock %}
+{% block page_title %}{{ 'Edit Device' if device else 'Add New Device' }}{% endblock %}
+
+{% block content %}
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">
+  {{ 'Update device details and pricing' if device else 'Add a new device to the catalogue' }}
+</p>
+
+<form method="post" action="{{ '/admin-panel/devices/' + device.id + '/edit' if device else '/admin-panel/devices/add' }}">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
+
+    <!-- Left: Main Info -->
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+      <div class="card">
+        <div class="card-header"><h3>Device Information</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div>
+              <label class="field-label">Brand <span style="color:#dc2626">*</span></label>
+              <select name="brand" class="field-input" required>
+                <option value="">Select brand…</option>
+                {% for b in brands %}
+                <option value="{{ b.name | lower }}" {% if device and device.brand == b.name | lower %}selected{% endif %}>{{ b.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Category <span style="color:#dc2626">*</span></label>
+              <select name="category" class="field-input" required>
+                <option value="">Select category…</option>
+                {% for c in categories %}
+                <option value="{{ c.name }}" {% if device and device.category == c.name %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="field-label">Model Name <span style="color:#dc2626">*</span></label>
+            <input type="text" name="name" class="field-input" placeholder="e.g. iPhone 16 Pro Max" value="{{ device.name if device else '' }}" required />
+          </div>
+          <div>
+            <label class="field-label">Full Name</label>
+            <input type="text" name="full_name" class="field-input" placeholder="e.g. Apple iPhone 16 Pro Max" value="{{ device.full_name if device else '' }}" />
+            <p style="font-size:.75rem;color:#9ca3af;margin-top:.25rem;">Leave blank to auto-generate from Brand + Model</p>
+          </div>
+          <div>
+            <label class="field-label">Image URL</label>
+            <input type="url" name="image_url" class="field-input" placeholder="https://..." value="{{ device.image_url if device else '' }}" />
+          </div>
+          <div style="display:flex;align-items:center;gap:.75rem;">
+            <input type="checkbox" name="is_active" id="is_active" value="true" {% if not device or device.is_active %}checked{% endif %}
+              style="width:1rem;height:1rem;border-radius:.25rem;border:1px solid #d1d5db;accent-color:#dc2626;" />
+            <label for="is_active" style="font-size:.875rem;font-weight:500;color:#374151;cursor:pointer;">Active (show on website)</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pricing Section -->
+      <div class="card">
+        <div class="card-header"><h3>Default Pricing</h3></div>
+        <div class="card-body">
+          <p style="font-size:.8125rem;color:#6b7280;margin-bottom:1rem;">Set prices for each storage / network / condition combination.</p>
+          {% if networks and storage_options and conditions %}
+          <div style="overflow-x:auto;">
+            <table style="min-width:500px;">
+              <thead>
+                <tr>
+                  <th>Network</th>
+                  <th>Storage</th>
+                  {% for c in conditions %}
+                  <th>{{ c.name }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for net in networks %}
+                {% if net.is_active %}
+                {% for stor in storage_options %}
+                {% if stor.is_active %}
+                <tr>
+                  <td style="font-size:.8125rem;font-weight:500;white-space:nowrap;">{{ net.name }}</td>
+                  <td style="font-size:.8125rem;white-space:nowrap;">{{ stor.name }}</td>
+                  {% for cond in conditions %}
+                  {% if cond.is_active %}
+                  <td>
+                    {% set field_key = 'gradeNew' if 'new' in cond.name | lower or 'mint' in cond.name | lower else ('gradeGood' if 'good' in cond.name | lower else 'gradeBroken') %}
+                    {% set price_val = '' %}
+                    {% if device and device.default_pricing %}
+                      {% for p in device.default_pricing %}
+                        {% if p.network == net.name and p.storage == stor.name %}
+                          {% set price_val = p.grade_new if field_key == 'gradeNew' else (p.grade_good if field_key == 'gradeGood' else p.grade_broken) %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                    <input type="number" name="price_{{ net.name }}_{{ stor.name }}_{{ field_key }}"
+                      class="field-input" style="width:80px;padding:.375rem .5rem;"
+                      placeholder="0" min="0" step="0.01" value="{{ price_val or '' }}" />
+                  </td>
+                  {% endif %}
+                  {% endfor %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="alert alert-yellow">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>Set up Networks, Storage Options and Conditions in Utilities first.</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Preview + Actions -->
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      {% if device and device.image_url %}
+      <div class="card">
+        <div class="card-header"><h3>Preview</h3></div>
+        <div class="card-body" style="text-align:center;">
+          <img src="{{ device.image_url }}" alt="{{ device.name }}"
+            style="max-height:120px;width:auto;object-fit:contain;margin:0 auto;"
+            onerror="this.style.display='none'" />
+          <p style="font-size:.875rem;font-weight:600;color:#111827;margin-top:.75rem;">{{ device.full_name or device.name }}</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="card-header"><h3>Actions</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:.75rem;">
+          <button type="submit" class="btn btn-red" style="width:100%;justify-content:center;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            {{ 'Save Changes' if device else 'Add Device' }}
+          </button>
+          <a href="/admin-panel/devices" class="btn btn-gray" style="width:100%;justify-content:center;">Cancel</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}

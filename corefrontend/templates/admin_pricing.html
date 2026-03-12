@@ -1,0 +1,128 @@
+{% extends "admin_base.html" %}
+{% block title %}Pricing Feed – Admin{% endblock %}
+{% block page_title %}Pricing Feed{% endblock %}
+
+{% block content %}
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Update device pricing across all storage, network and condition combinations</p>
+
+<!-- Search -->
+<form method="get" action="/admin-panel/pricing" style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem;">
+  <div class="search-wrap">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" name="q" class="field-input search-input" placeholder="Search devices…" value="{{ q or '' }}" style="width:240px;" />
+  </div>
+  <button type="submit" class="btn btn-gray btn-sm">Search</button>
+  {% if q %}<a href="/admin-panel/pricing" class="btn btn-sm" style="color:#dc2626;border:1px solid #fecaca;background:#fef2f2;">✕ Clear</a>{% endif %}
+  <span style="font-size:.875rem;color:#6b7280;">{{ devices | length }} device{{ 's' if devices | length != 1 else '' }}</span>
+</form>
+
+{% if devices %}
+{% for device in devices %}
+<div class="card" style="margin-bottom:1.25rem;">
+  <div class="card-header" style="cursor:pointer;" onclick="togglePricing('{{ device.id }}')">
+    <div style="display:flex;align-items:center;gap:.875rem;">
+      <img src="{{ device.image_url or 'https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png' }}"
+        alt="{{ device.full_name }}" style="width:2.5rem;height:2.5rem;object-fit:contain;border-radius:.375rem;background:#f9fafb;"
+        onerror="this.src='https://zennara-storage.s3.ap-south-1.amazonaws.com/device-images/1771189550215-default%20(1).png'" />
+      <div>
+        <h3>{{ device.full_name or device.name }}</h3>
+        <p style="font-size:.75rem;color:#6b7280;">{{ device.brand | capitalize }} · {{ device.category or 'Phone' }}</p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem;">
+      <span class="badge {% if device.is_active %}badge-green{% else %}badge-gray{% endif %}">{{ 'Active' if device.is_active else 'Inactive' }}</span>
+      <svg id="chevron-{{ device.id }}" style="width:1.125rem;height:1.125rem;color:#6b7280;transition:transform .2s;transform:rotate(0deg);" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+  </div>
+
+  <div id="pricing-{{ device.id }}" style="display:none;">
+    <form method="post" action="/admin-panel/pricing/{{ device.id }}">
+      <div style="padding:1.25rem;overflow-x:auto;">
+        <div style="margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <span style="font-size:.75rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Networks:</span>
+          {% for net in networks %}
+          {% if net.is_active %}
+          <label style="display:flex;align-items:center;gap:.375rem;cursor:pointer;font-size:.8125rem;">
+            <input type="checkbox" name="networks" value="{{ net.name }}"
+              {% if device.pricing_networks and net.name in device.pricing_networks %}checked{% endif %}
+              style="accent-color:#dc2626;" />
+            {{ net.name }}
+          </label>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <table style="min-width:400px;width:100%;">
+          <thead>
+            <tr>
+              <th>Storage</th>
+              {% for c in conditions %}{% if c.is_active %}<th>{{ c.name }}</th>{% endif %}{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for stor in storage_options %}
+            {% if stor.is_active %}
+            <tr>
+              <td style="font-size:.875rem;font-weight:500;white-space:nowrap;">{{ stor.name }}</td>
+              {% for cond in conditions %}
+              {% if cond.is_active %}
+              {% set fkey = 'grade_new' if ('new' in cond.name | lower or 'mint' in cond.name | lower) else ('grade_good' if 'good' in cond.name | lower else 'grade_broken') %}
+              {% set cur_price = '' %}
+              {% if device.pricing %}
+                {% for p in device.pricing %}
+                  {% if p.storage == stor.name %}
+                    {% if fkey == 'grade_new' %}{% set cur_price = p.grade_new %}
+                    {% elif fkey == 'grade_good' %}{% set cur_price = p.grade_good %}
+                    {% else %}{% set cur_price = p.grade_broken %}{% endif %}
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+              <td>
+                <input type="number" name="{{ stor.name }}__{{ fkey }}"
+                  class="field-input" style="width:90px;padding:.375rem .5rem;"
+                  placeholder="0" min="0" step="0.01" value="{{ cur_price or '' }}" />
+              </td>
+              {% endif %}
+              {% endfor %}
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:.875rem 1.25rem;border-top:1px solid #f3f4f6;display:flex;justify-content:flex-end;">
+        <button type="submit" class="btn btn-red btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+          Save Pricing for {{ device.name }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    <p>No devices found</p>
+    <small>Add devices first, then set pricing here</small>
+  </div>
+</div>
+{% endif %}
+
+{% block extra_scripts %}
+<script>
+function togglePricing(id) {
+  var panel = document.getElementById('pricing-' + id);
+  var chevron = document.getElementById('chevron-' + id);
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    chevron.style.transform = 'rotate(180deg)';
+  } else {
+    panel.style.display = 'none';
+    chevron.style.transform = 'rotate(0deg)';
+  }
+}
+</script>
+{% endblock %}
+{% endblock %}
