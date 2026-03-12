@@ -61,6 +61,15 @@ def _redirect_login(msg: str = ""):
     return RedirectResponse("/admin-panel/login", status_code=302)
 
 
+async def _send_admin_otp(email: str, code: str) -> bool:
+    try:
+        from app.services.email_service import send_otp_email
+        return await send_otp_email(email, code)
+    except Exception as e:
+        logger.warning(f"OTP email failed: {e}")
+        return False
+
+
 def _ctx(request: Request, active: str, email: str, **kwargs):
     return {"request": request, "active_page": active, "admin_email": email, **kwargs}
 
@@ -68,6 +77,31 @@ def _ctx(request: Request, active: str, email: str, **kwargs):
 # ── Utility: generate OTP ──────────────────────────────────────────────────────
 def _gen_otp() -> str:
     return "".join(random.choices(string.digits, k=6))
+
+
+# ── Safe order loader (skips malformed documents) ─────────────────────────────
+async def _safe_orders(limit: int = 0):
+    from app.models.order import Order
+    query = Order.find(
+        {"order_number": {"$exists": True}, "customer_name": {"$exists": True}}
+    ).sort(-Order.created_at)
+    if limit:
+        query = query.limit(limit)
+    return await query.to_list()
+
+
+async def _safe_api_logs(limit: int = 50):
+    from app.models.api_log import ApiLog
+    return await ApiLog.find(
+        {"source_ip": {"$exists": True}, "status_code": {"$exists": True}}
+    ).sort(-ApiLog.created_at).limit(limit).to_list()
+
+
+async def _safe_partners():
+    from app.models.partner import Partner
+    return await Partner.find(
+        {"key_hash": {"$exists": True}, "key_prefix": {"$exists": True}}
+    ).sort(-Partner.created_at).to_list()
 
 
 # ── Shared data loaders ────────────────────────────────────────────────────────
@@ -84,6 +118,7 @@ async def _load_utilities():
     conditions = await DeviceCondition.find().to_list()
     networks = await Network.find().to_list()
     brands = await Brand.find().to_list()
+    partners = await _safe_partners()
     categories = await Category.find().to_list()
     order_statuses = await OrderStatus.find().sort(+OrderStatus.sort_order).to_list()
     payment_statuses = await PaymentStatus.find().to_list()
@@ -121,11 +156,8 @@ async def admin_login_post(request: Request, email: str = Form(...)):
     await OTP(email=email, code=code, expires_at=expires).insert()
 
     # Try to send email
-    try:
-        from app.utils.email import send_otp_email
-        await send_otp_email(email, code)
-    except Exception as e:
-        logger.warning(f"OTP email failed (showing in log for dev): {e}")
+    sent = await _send_admin_otp(email, code)
+    if not sent:
         logger.info(f"[DEV OTP] {email} → {code}")
 
     return templates.TemplateResponse("admin_login.html", {
@@ -181,10 +213,8 @@ async def admin_login_resend(request: Request, email: str = ""):
     expires = datetime.utcnow() + timedelta(minutes=10)
     await OTP(email=email, code=code, expires_at=expires).insert()
 
-    try:
-        from app.utils.email import send_otp_email
-        await send_otp_email(email, code)
-    except Exception as e:
+    sent = await _send_admin_otp(email, code)
+    if not sent:
         logger.info(f"[DEV OTP resend] {email} → {code}")
 
     return templates.TemplateResponse("admin_login.html", {
@@ -211,13 +241,12 @@ async def admin_dashboard(request: Request):
     if not email:
         return _redirect_login()
 
-    from app.models.order import Order
     from app.models.device import Device
     from app.models.api_log import ApiLog
 
-    orders = await Order.find().sort(-Order.created_at).to_list()
+    orders = await _safe_orders()
     devices = await Device.find().to_list()
-    api_logs = await ApiLog.find().sort(-ApiLog.created_at).limit(50).to_list()
+    api_logs = await _safe_api_logs()
 
     total = len(orders)
     active = sum(1 for o in orders if o.status not in ['COMPLETED', 'PAID', 'CLOSED', 'CANCELLED'])
@@ -261,7 +290,7 @@ async def admin_orders(request: Request, q: str = "", status: str = "", page: in
     from app.models.order_status import OrderStatus
     from app.models.payment_status import PaymentStatus
 
-    all_orders = await Order.find().sort(-Order.created_at).to_list()
+    all_orders = await _safe_orders()
     order_statuses = await OrderStatus.find().sort(+OrderStatus.sort_order).to_list()
     payment_statuses = await PaymentStatus.find().to_list()
 
@@ -618,8 +647,8 @@ async def _save_device_pricing(device_id: str, device_name: str, form):
                 except ValueError:
                     price_map[net][stor][grade_field] = 0.0
 
-    for net, storages in price_map.items():
-        for stor, grades in storages.items():
+    for net in (networks_selected or ["Unlocked"]):
+        for stor, grades in price_map.items():
             p = Pricing(
                 device_id=device_id, device_name=device_name,
                 network=net, storage=stor,
@@ -868,8 +897,7 @@ async def admin_partners(request: Request, new_key: str = "", new_name: str = ""
         return _redirect_login()
 
     from app.models.partner import Partner
-    partners = await Partner.find().sort(-Partner.created_at).to_list()
-
+    partners = await _safe_partners()
     partners_data = []
     for p in partners:
         partners_data.append({
@@ -972,10 +1000,9 @@ async def admin_api_gateway(request: Request):
     if not email:
         return _redirect_login()
 
-    from app.models.api_log import ApiLog
     from app.models.partner import Partner
 
-    logs_raw = await ApiLog.find().sort(-ApiLog.created_at).limit(100).to_list()
+    logs_raw = await _safe_api_logs(100)
     partners = await Partner.find().to_list()
     partner_map = {p.name: p.name for p in partners}
 
