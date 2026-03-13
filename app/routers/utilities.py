@@ -325,7 +325,7 @@ async def reorder_categories(body: ReorderSchema):
 
 # ── ORDER STATUSES ────────────────────────────────────────────────────────────
 
-@router.get("/order-statuses", summary="Get all order statuses", dependencies=[Depends(get_current_admin)])
+@router.get("/order-statuses", summary="Get all order statuses")
 async def get_order_statuses():
     statuses = await OrderStatus.find().sort(OrderStatus.sort_order).to_list()
     return success_response({"orderStatuses": [_sos(s) for s in statuses]})
@@ -379,7 +379,7 @@ async def reorder_order_statuses(body: ReorderSchema):
 
 # ── PAYMENT STATUSES ──────────────────────────────────────────────────────────
 
-@router.get("/payment-statuses", summary="Get all payment statuses", dependencies=[Depends(get_current_admin)])
+@router.get("/payment-statuses", summary="Get all payment statuses")
 async def get_payment_statuses():
     statuses = await PaymentStatus.find().sort(PaymentStatus.sort_order).to_list()
     return success_response({"paymentStatuses": [_sps(s) for s in statuses]})

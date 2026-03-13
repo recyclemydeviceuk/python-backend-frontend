@@ -25,18 +25,18 @@ async def get_dashboard():
 
 @router.get("/recent-orders", summary="Get recent orders", dependencies=[Depends(get_current_admin)])
 async def get_recent_orders(limit: int = Query(10, ge=1, le=100)):
-    orders = await Order.find().sort(-Order.created_at).limit(limit).to_list()
+    orders = await Order.get_motor_collection().find({}).sort("createdAt", -1).limit(limit).to_list(length=limit)
     data = [
         {
-            "id": str(o.id), "_id": str(o.id),
-            "orderNumber": o.order_number, "order_number": o.order_number,
-            "status": o.status,
-            "source": o.source,
-            "customerName": o.customer_name, "customer_name": o.customer_name,
-            "deviceName": o.device_name, "device_name": o.device_name,
-            "offeredPrice": o.offered_price, "offered_price": o.offered_price,
-            "finalPrice": o.final_price, "final_price": o.final_price,
-            "createdAt": o.created_at.isoformat(), "created_at": o.created_at.isoformat(),
+            "id": str(o.get("_id") or o.get("id")), "_id": str(o.get("_id") or o.get("id")),
+            "orderNumber": o.get("orderNumber") or o.get("order_number") or "", "order_number": o.get("orderNumber") or o.get("order_number") or "",
+            "status": o.get("status") or "PENDING",
+            "source": o.get("source") or "WEBSITE",
+            "customerName": o.get("customerName") or o.get("customer_name") or "", "customer_name": o.get("customerName") or o.get("customer_name") or "",
+            "deviceName": o.get("deviceName") or o.get("device_name") or "", "device_name": o.get("deviceName") or o.get("device_name") or "",
+            "offeredPrice": o.get("offeredPrice", o.get("offered_price", 0)), "offered_price": o.get("offeredPrice", o.get("offered_price", 0)),
+            "finalPrice": o.get("finalPrice", o.get("final_price")), "final_price": o.get("finalPrice", o.get("final_price")),
+            "createdAt": (o.get("createdAt") or o.get("created_at") or datetime.utcnow()).isoformat() if isinstance(o.get("createdAt") or o.get("created_at"), datetime) else str(o.get("createdAt") or o.get("created_at") or datetime.utcnow().isoformat()), "created_at": (o.get("createdAt") or o.get("created_at") or datetime.utcnow()).isoformat() if isinstance(o.get("createdAt") or o.get("created_at"), datetime) else str(o.get("createdAt") or o.get("created_at") or datetime.utcnow().isoformat()),
         }
         for o in orders
     ]

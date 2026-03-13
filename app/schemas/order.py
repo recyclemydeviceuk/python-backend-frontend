@@ -34,14 +34,16 @@ class CreateOrderSchema(BaseModel):
 
 
 class UpdateOrderSchema(BaseModel):
+    model_config = {"populate_by_name": True}
+
     status: Optional[OrderStatus] = None
-    final_price: Optional[float] = None
-    price_revision_reason: Optional[str] = None
-    tracking_number: Optional[str] = None
-    payment_status: Optional[PaymentStatus] = None
-    payout_details: Optional[PayoutDetailsSchema] = None
-    transaction_id: Optional[str] = None
-    admin_notes: Optional[str] = None
+    final_price: Optional[float] = Field(None, alias="finalPrice")
+    price_revision_reason: Optional[str] = Field(None, alias="priceRevisionReason")
+    tracking_number: Optional[str] = Field(None, alias="trackingNumber")
+    payment_status: Optional[PaymentStatus] = Field(None, alias="paymentStatus")
+    payout_details: Optional[PayoutDetailsSchema] = Field(None, alias="payoutDetails")
+    transaction_id: Optional[str] = Field(None, alias="transactionId")
+    admin_notes: Optional[str] = Field(None, alias="adminNotes")
     notes: Optional[str] = None
 
 

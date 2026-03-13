@@ -8,6 +8,7 @@ from app.config.constants import AdminRole
 class Admin(Document):
     email: str
     username: str
+    name: str = ""  # Added for frontend compatibility
     role: AdminRole = AdminRole.ADMIN
     is_active: bool = True
     last_login: Optional[datetime] = None

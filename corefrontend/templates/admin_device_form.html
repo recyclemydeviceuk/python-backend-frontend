@@ -7,7 +7,7 @@
   {{ 'Update device details and pricing' if device else 'Add a new device to the catalogue' }}
 </p>
 
-<form method="post" action="{{ '/admin-panel/devices/' + device.id + '/edit' if device else '/admin-panel/devices/add' }}">
+<form method="post" action="{{ '/admin-panel/devices/' + (device.id | string) + '/edit' if device else '/admin-panel/devices/add' }}">
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
 
     <!-- Left: Main Info -->
@@ -46,8 +46,30 @@
             <p style="font-size:.75rem;color:#9ca3af;margin-top:.25rem;">Leave blank to auto-generate from Brand + Model</p>
           </div>
           <div>
-            <label class="field-label">Image URL</label>
-            <input type="url" name="image_url" class="field-input" placeholder="https://..." value="{{ device.image_url if device else '' }}" />
+            <label class="field-label">Device Image</label>
+            <div style="display:flex;flex-direction:column;gap:.625rem;">
+              <!-- Upload button -->
+              <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;">
+                <label for="imgFileInput" style="display:inline-flex;align-items:center;gap:.375rem;padding:.5rem .875rem;background:#f9fafb;border:1px dashed #d1d5db;border-radius:.625rem;cursor:pointer;font-size:.8125rem;font-weight:500;color:#374151;transition:all .15s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#f9fafb'">
+                  <svg style="width:1rem;height:1rem;color:#6b7280" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Upload from computer
+                </label>
+                <input type="file" id="imgFileInput" accept="image/*" style="display:none;" onchange="uploadDeviceImage(this)" />
+                <span id="imgUploadStatus" style="font-size:.75rem;color:#6b7280;"></span>
+              </div>
+              <!-- Preview -->
+              <div id="imgPreviewWrap" style="{% if device and device.image_url %}display:block{% else %}display:none{% endif %}">
+                <img id="imgPreview" src="{{ device.image_url if device else '' }}" alt="preview"
+                  style="height:64px;width:auto;object-fit:contain;border-radius:.5rem;border:1px solid #e5e7eb;padding:.25rem;background:#f9fafb;"
+                  onerror="this.style.display='none'" />
+              </div>
+              <!-- URL input (hidden but submitted) -->
+              <div style="display:flex;align-items:center;gap:.5rem;">
+                <input type="url" id="imgUrlInput" name="image_url" class="field-input" placeholder="Or paste URL directly…"
+                  value="{{ device.image_url if device else '' }}"
+                  oninput="document.getElementById('imgPreview').src=this.value;document.getElementById('imgPreviewWrap').style.display=this.value?'block':'none'" />
+              </div>
+            </div>
           </div>
           <div style="display:flex;align-items:center;gap:.75rem;">
             <input type="checkbox" name="is_active" id="is_active" value="true" {% if not device or device.is_active %}checked{% endif %}
@@ -77,8 +99,10 @@
               <tbody>
                 {% for net in networks %}
                 {% if net.is_active %}
+                {% set net_val = net.value if net.value else net.name %}
                 {% for stor in storage_options %}
                 {% if stor.is_active %}
+                {% set stor_val = stor.value if stor.value else stor.name %}
                 <tr>
                   <td style="font-size:.8125rem;font-weight:500;white-space:nowrap;">{{ net.name }}</td>
                   <td style="font-size:.8125rem;white-space:nowrap;">{{ stor.name }}</td>
@@ -87,16 +111,16 @@
                   <td>
                     {% set field_key = 'gradeNew' if 'new' in cond.name | lower or 'mint' in cond.name | lower else ('gradeGood' if 'good' in cond.name | lower else 'gradeBroken') %}
                     {% set price_val = '' %}
-                    {% if device and device.default_pricing %}
-                      {% for p in device.default_pricing %}
-                        {% if p.network == net.name and p.storage == stor.name %}
+                    {% if device and default_pricing %}
+                      {% for p in default_pricing %}
+                        {% if p.network | lower == net_val | lower and p.storage | lower == stor_val | lower %}
                           {% set price_val = p.grade_new if field_key == 'gradeNew' else (p.grade_good if field_key == 'gradeGood' else p.grade_broken) %}
                         {% endif %}
                       {% endfor %}
                     {% endif %}
-                    <input type="number" name="price_{{ net.name }}_{{ stor.name }}_{{ field_key }}"
+                    <input type="number" name="price_{{ net_val }}_{{ stor_val }}_{{ field_key }}"
                       class="field-input" style="width:80px;padding:.375rem .5rem;"
-                      placeholder="0" min="0" step="0.01" value="{{ price_val or '' }}" />
+                      placeholder="0" min="0" step="0.01" value="{{ price_val if price_val else '' }}" />
                   </td>
                   {% endif %}
                   {% endfor %}
@@ -147,4 +171,44 @@
 
   </div>
 </form>
+
+<script>
+async function uploadDeviceImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('imgUploadStatus');
+  const urlInput = document.getElementById('imgUrlInput');
+  const preview = document.getElementById('imgPreview');
+  const previewWrap = document.getElementById('imgPreviewWrap');
+
+  status.textContent = 'Uploading…';
+  status.style.color = '#6b7280';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/admin-panel/devices/upload-image', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.url) {
+      urlInput.value = data.url;
+      preview.src = data.url;
+      preview.style.display = '';
+      previewWrap.style.display = 'block';
+      status.textContent = '✓ Uploaded successfully';
+      status.style.color = '#059669';
+    } else {
+      status.textContent = '✗ ' + (data.error || 'Upload failed');
+      status.style.color = '#dc2626';
+    }
+  } catch (e) {
+    status.textContent = '✗ Upload failed: ' + e.message;
+    status.style.color = '#dc2626';
+  }
+  input.value = '';
+}
+</script>
 {% endblock %}

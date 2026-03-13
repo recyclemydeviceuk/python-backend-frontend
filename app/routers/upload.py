@@ -23,7 +23,7 @@ async def upload_image(file: UploadFile = File(...)):
     if not url:
         raise HTTPException(status_code=500, detail="Failed to upload file")
 
-    return success_response({"url": url}, "Image uploaded successfully")
+    return success_response({"imageUrl": url, "url": url, "key": file.filename}, "Image uploaded successfully")
 
 
 @router.delete("/image", summary="Delete image from S3", dependencies=[Depends(get_current_admin)])

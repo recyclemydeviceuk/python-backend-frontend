@@ -5,12 +5,12 @@
 {% block content %}
 <p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage all incoming orders from website and API</p>
 
-<!-- Controls -->
+<!-- Controls Row -->
 <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;">
   <form method="get" action="/admin-panel/orders" style="display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;">
     <div class="search-wrap">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" name="q" class="field-input search-input" placeholder="Search orders, customer, device…" value="{{ q or '' }}" style="width:220px;" />
+      <input type="text" name="q" id="searchInput" class="field-input search-input" placeholder="Search orders, customer, device…" value="{{ q or '' }}" style="width:230px;" />
     </div>
     <select name="status" class="field-input" style="width:160px;">
       <option value="">All Statuses</option>
@@ -22,27 +22,49 @@
     {% if q or status_filter %}
     <a href="/admin-panel/orders" class="btn btn-sm" style="color:#dc2626;border:1px solid #fecaca;background:#fef2f2;">✕ Clear</a>
     {% endif %}
-    <span style="font-size:.875rem;color:#6b7280;">{{ total }} orders</span>
+    <span style="font-size:.875rem;color:#6b7280;" id="orderCount">{{ total }} orders</span>
   </form>
-  <div style="display:flex;gap:.5rem;">
-    <a href="/admin-panel/orders?{{ request.query_string.decode() }}&export=csv" class="btn btn-gray btn-sm">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  <div style="display:flex;gap:.5rem;align-items:center;">
+    <button id="bulkBtn" onclick="toggleBulkPanel()" style="display:none;" class="btn btn-sm" style="background:#d97706;color:#fff;border:none;">
+      <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      Bulk Actions (<span id="selectedCount">0</span>)
+    </button>
+    <button onclick="exportCSV()" class="btn btn-gray btn-sm">
+      <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export CSV
-    </a>
+    </button>
   </div>
 </div>
 
+<!-- Bulk Actions Panel -->
+<div id="bulkPanel" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:.75rem;padding:1rem;margin-bottom:1rem;">
+  <p style="font-size:.75rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;">Bulk Update Selected Orders</p>
+  <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
+    {% for s in order_statuses %}
+    {% if s.is_active %}
+    <button onclick="bulkUpdateStatus('{{ s.value or s.name }}')"
+      style="padding:.375rem .875rem;border-radius:.5rem;font-size:.75rem;font-weight:600;border:1px solid #e5e7eb;background:#fff;cursor:pointer;transition:all .15s;"
+      onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">{{ s.name }}</button>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <p style="font-size:.6875rem;color:#6b7280;font-style:italic;margin-top:.5rem;">Payment status updates automatically based on order status</p>
+</div>
+
 <!-- Quick Status Filters -->
-<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1rem;overflow-x:auto;padding-bottom:.25rem;">
   <a href="/admin-panel/orders{% if q %}?q={{ q | urlencode }}{% endif %}"
-    class="badge {% if not status_filter %}badge-red{% else %}badge-gray{% endif %}"
-    style="padding:.375rem .75rem;cursor:pointer;">All ({{ total_all }})</a>
+    style="display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .75rem;border-radius:.5rem;font-size:.75rem;font-weight:600;white-space:nowrap;border:1px solid {% if not status_filter %}#dc2626{% else %}#e5e7eb{% endif %};background:{% if not status_filter %}#fef2f2{% else %}#fff{% endif %};color:{% if not status_filter %}#dc2626{% else %}#374151{% endif %};">
+    All <span style="background:{% if not status_filter %}#fecaca{% else %}#f3f4f6{% endif %};padding:.125rem .375rem;border-radius:9999px;font-size:.625rem;">{{ total_all }}</span>
+  </a>
   {% for s in order_statuses %}
   {% set cnt = status_counts.get(s.value or s.name, 0) %}
   {% if cnt > 0 %}
+  {% set isActive = status_filter == (s.value or s.name) %}
   <a href="/admin-panel/orders?status={{ (s.value or s.name) | urlencode }}{% if q %}&q={{ q | urlencode }}{% endif %}"
-    class="badge {% if status_filter == (s.value or s.name) %}badge-red{% else %}badge-gray{% endif %}"
-    style="padding:.375rem .75rem;cursor:pointer;">{{ s.name }} ({{ cnt }})</a>
+    style="display:inline-flex;align-items:center;gap:.375rem;padding:.375rem .75rem;border-radius:.5rem;font-size:.75rem;font-weight:600;white-space:nowrap;border:1px solid {% if isActive %}#dc2626{% else %}#e5e7eb{% endif %};background:{% if isActive %}#fef2f2{% else %}#fff{% endif %};color:{% if isActive %}#dc2626{% else %}#374151{% endif %};">
+    {{ s.name }} <span style="background:{% if isActive %}#fecaca{% else %}#f3f4f6{% endif %};padding:.125rem .375rem;border-radius:9999px;font-size:.625rem;">{{ cnt }}</span>
+  </a>
   {% endif %}
   {% endfor %}
 </div>
@@ -51,9 +73,12 @@
 <div class="card">
   {% if orders %}
   <div class="table-wrap">
-    <table>
+    <table id="ordersTable">
       <thead>
         <tr>
+          <th style="width:2.5rem;">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="width:1rem;height:1rem;cursor:pointer;" />
+          </th>
           <th>Order #</th>
           <th>Customer</th>
           <th>Device</th>
@@ -68,14 +93,17 @@
       </thead>
       <tbody>
         {% for o in orders %}
-        <tr>
+        <tr data-id="{{ o.id }}" data-order="{{ o.order_number }}" data-customer="{{ o.customer_name }}" data-phone="{{ o.customer_phone }}" data-email="{{ o.customer_email or '' }}" data-device="{{ o.device_name }}" data-status="{{ o.status }}" data-payment="{{ o.payment_status or 'PENDING' }}" data-source="{{ o.source }}" data-price="{{ o.offered_price }}" data-final="{{ o.final_price or o.offered_price }}" data-postage="{{ o.postage_method or '' }}" data-date="{{ o.created_at.strftime('%d/%m/%Y') if o.created_at else '' }}">
+          <td>
+            <input type="checkbox" class="row-check" onchange="updateSelection()" style="width:1rem;height:1rem;cursor:pointer;" />
+          </td>
           <td><a href="/admin-panel/orders/{{ o.id }}" style="font-weight:600;color:#dc2626;">#{{ o.order_number }}</a></td>
           <td>
-            <p style="font-weight:500;">{{ o.customer_name }}</p>
+            <p style="font-weight:500;font-size:.875rem;">{{ o.customer_name }}</p>
             <p style="font-size:.75rem;color:#6b7280;">{{ o.customer_phone }}</p>
           </td>
           <td>
-            <p>{{ o.device_name }}</p>
+            <p style="font-size:.875rem;">{{ o.device_name }}</p>
             <p style="font-size:.75rem;color:#6b7280;">{{ o.storage or '' }}{% if o.storage and o.network %} · {% endif %}{{ o.network or '' }}</p>
           </td>
           <td>
@@ -84,9 +112,7 @@
           <td style="font-weight:600;">£{{ o.offered_price }}</td>
           <td>
             <span class="badge {% if o.source == 'API' %}badge-purple{% else %}badge-blue{% endif %}">{{ o.source }}</span>
-            {% if o.partner_name %}
-            <p style="font-size:.6875rem;color:#7c3aed;font-weight:600;margin-top:.25rem;">{{ o.partner_name }}</p>
-            {% endif %}
+            {% if o.partner_name %}<p style="font-size:.6875rem;color:#7c3aed;font-weight:600;margin-top:.25rem;">{{ o.partner_name }}</p>{% endif %}
           </td>
           <td>
             <span class="badge {% if o.status == 'PENDING' %}badge-yellow{% elif o.status in ['COMPLETED','PAID'] %}badge-green{% elif o.status == 'CANCELLED' %}badge-red{% elif o.status == 'RECEIVED' %}badge-blue{% else %}badge-gray{% endif %}">{{ o.status }}</span>
@@ -96,15 +122,17 @@
           </td>
           <td style="font-size:.75rem;color:#6b7280;white-space:nowrap;">{{ o.created_at.strftime('%d/%m/%Y') if o.created_at else '' }}</td>
           <td>
-            <div style="display:flex;gap:.25rem;">
+            <div style="display:flex;gap:.25rem;align-items:center;">
               <a href="/admin-panel/orders/{{ o.id }}" class="btn btn-gray btn-sm" style="padding:.375rem .5rem;" title="View">
                 <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </a>
-              <form method="post" action="/admin-panel/orders/{{ o.id }}/delete" onsubmit="return confirm('Delete this order?')">
-                <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.375rem .5rem;" title="Delete">
-                  <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
-              </form>
+              <button onclick="openStatusModal('{{ o.id }}','{{ o.order_number }}','{{ o.customer_name }}','{{ o.status }}')"
+                class="btn btn-sm" style="padding:.375rem .5rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;" title="Update status">
+                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <button onclick="openDeleteModal('{{ o.id }}')" class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.375rem .5rem;" title="Delete">
+                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              </button>
             </div>
           </td>
         </tr>
@@ -140,4 +168,152 @@
   </div>
   {% endif %}
 </div>
+
+<!-- Delete Confirm Modal -->
+<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:1rem;padding:1.5rem;max-width:22rem;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="width:3rem;height:3rem;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+      <svg style="width:1.5rem;height:1.5rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    </div>
+    <h3 style="font-weight:700;text-align:center;margin-bottom:.375rem;">Delete Order?</h3>
+    <p style="font-size:.875rem;color:#6b7280;text-align:center;margin-bottom:1.25rem;">This action cannot be undone.</p>
+    <div style="display:flex;gap:.75rem;">
+      <button onclick="closeDeleteModal()" style="flex:1;padding:.625rem;border-radius:.75rem;border:1px solid #e5e7eb;font-weight:600;font-size:.875rem;cursor:pointer;background:#fff;">Cancel</button>
+      <form id="deleteForm" method="post" style="flex:1;">
+        <button type="submit" style="width:100%;padding:.625rem;border-radius:.75rem;background:#dc2626;color:#fff;font-weight:600;font-size:.875rem;border:none;cursor:pointer;">Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Status Update Modal -->
+<div id="statusModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:1rem;max-width:26rem;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid #e5e7eb;">
+      <div>
+        <h3 style="font-weight:700;font-size:.9375rem;">Update Order Status</h3>
+        <p id="statusModalSub" style="font-size:.75rem;color:#6b7280;margin-top:.25rem;"></p>
+      </div>
+      <button onclick="closeStatusModal()" style="padding:.375rem;border-radius:.5rem;color:#6b7280;cursor:pointer;border:none;background:none;font-size:1.25rem;line-height:1;">✕</button>
+    </div>
+    <div style="padding:1.25rem;">
+      <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem;">Select New Status</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;" id="statusOptions">
+        {% for s in order_statuses %}
+        {% if s.is_active %}
+        <button onclick="submitStatusUpdate('{{ s.value or s.name }}')"
+          data-value="{{ s.value or s.name }}"
+          style="padding:.625rem .75rem;border-radius:.75rem;font-size:.75rem;font-weight:600;text-align:left;cursor:pointer;border:1px solid #e5e7eb;background:#f9fafb;transition:all .15s;"
+          onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#f9fafb'">
+          {{ s.name }}
+        </button>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Selection ──────────────────────────────────────────────────────────
+var selectedIds = [];
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+  updateSelection();
+}
+function updateSelection() {
+  selectedIds = [];
+  document.querySelectorAll('.row-check:checked').forEach(c => {
+    selectedIds.push(c.closest('tr').dataset.id);
+  });
+  var cnt = selectedIds.length;
+  document.getElementById('selectedCount').textContent = cnt;
+  var btn = document.getElementById('bulkBtn');
+  btn.style.display = cnt > 0 ? 'inline-flex' : 'none';
+  btn.style.background = '#d97706'; btn.style.color = '#fff'; btn.style.border = 'none';
+  btn.style.alignItems = 'center'; btn.style.gap = '.375rem';
+  btn.style.padding = '.375rem .75rem'; btn.style.borderRadius = '.5rem';
+  btn.style.fontSize = '.8125rem'; btn.style.fontWeight = '600'; btn.style.cursor = 'pointer';
+  if (cnt === 0) document.getElementById('bulkPanel').style.display = 'none';
+}
+
+function toggleBulkPanel() {
+  var p = document.getElementById('bulkPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+function bulkUpdateStatus(status) {
+  if (selectedIds.length === 0) return;
+  if (!confirm('Update ' + selectedIds.length + ' orders to "' + status + '"?')) return;
+  var promises = selectedIds.map(id =>
+    fetch('/admin-panel/orders/' + id + '/status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'status=' + encodeURIComponent(status) + '&_ajax=1'
+    })
+  );
+  Promise.all(promises).then(() => window.location.reload());
+}
+
+// ── Delete Modal ───────────────────────────────────────────────────────
+function openDeleteModal(id) {
+  document.getElementById('deleteForm').action = '/admin-panel/orders/' + id + '/delete';
+  var m = document.getElementById('deleteModal');
+  m.style.display = 'flex';
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').style.display = 'none';
+}
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
+});
+
+// ── Status Modal ───────────────────────────────────────────────────────
+var _statusOrderId = null;
+function openStatusModal(id, num, name, currentStatus) {
+  _statusOrderId = id;
+  document.getElementById('statusModalSub').textContent = '#' + num + ' · ' + name;
+  // Highlight current status
+  document.querySelectorAll('#statusOptions button').forEach(b => {
+    var isActive = b.dataset.value === currentStatus;
+    b.style.border = isActive ? '2px solid #dc2626' : '1px solid #e5e7eb';
+    b.style.background = isActive ? '#fef2f2' : '#f9fafb';
+    b.style.color = isActive ? '#dc2626' : '#374151';
+  });
+  var m = document.getElementById('statusModal');
+  m.style.display = 'flex';
+}
+function closeStatusModal() {
+  document.getElementById('statusModal').style.display = 'none';
+  _statusOrderId = null;
+}
+function submitStatusUpdate(status) {
+  if (!_statusOrderId) return;
+  fetch('/admin-panel/orders/' + _statusOrderId + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'status=' + encodeURIComponent(status)
+  }).then(() => window.location.reload());
+}
+document.getElementById('statusModal').addEventListener('click', function(e) {
+  if (e.target === this) closeStatusModal();
+});
+
+// ── CSV Export ─────────────────────────────────────────────────────────
+function exportCSV() {
+  var rows = [['Order #','Customer','Phone','Email','Device','Network','Grade','Storage','£ Offered','£ Final','Status','Payment','Source','Postage','Date']];
+  document.querySelectorAll('#ordersTable tbody tr').forEach(tr => {
+    rows.push([
+      '#' + tr.dataset.order, tr.dataset.customer, tr.dataset.phone, tr.dataset.email,
+      tr.dataset.device, '', '', '',
+      tr.dataset.price, tr.dataset.final,
+      tr.dataset.status, tr.dataset.payment, tr.dataset.source, tr.dataset.postage, tr.dataset.date
+    ]);
+  });
+  var csv = rows.map(r => r.map(c => '"' + String(c || '').replace(/"/g,'""') + '"').join(',')).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'orders-export.csv'; a.click();
+}
+</script>
 {% endblock %}

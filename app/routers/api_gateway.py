@@ -1,9 +1,10 @@
 import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from bson import ObjectId
 from app.models.order import Order
 from app.models.api_log import ApiLog
 from app.models.device import Device
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/gateway", tags=["API Gateway"])
 
 
 class GatewayOrderSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     customer_name: str
     customer_phone: str
     customer_email: Optional[str] = None
@@ -29,11 +31,20 @@ class GatewayOrderSchema(BaseModel):
     device_grade: str                    # "NEW", "GOOD", "BROKEN"
     offered_price: float
     storage: Optional[str] = None
-    bank_name: Optional[str] = None
-    account_number: Optional[str] = None
-    sort_code: Optional[str] = None
+    bank_name: Optional[str] = Field(None, alias="payout_account_name")
+    account_number: Optional[str] = Field(None, alias="payout_account_number")
+    sort_code: Optional[str] = Field(None, alias="payout_sort_code")
     transaction_id: Optional[str] = None
     device_id: Optional[str] = None
+
+    def __init__(self, **data):
+        if "payout_account_name" in data and "bank_name" not in data:
+            data["bank_name"] = data["payout_account_name"]
+        if "payout_account_number" in data and "account_number" not in data:
+            data["account_number"] = data["payout_account_number"]
+        if "payout_sort_code" in data and "sort_code" not in data:
+            data["sort_code"] = data["payout_sort_code"]
+        super().__init__(**data)
 
 
 async def _log_api_request(
@@ -49,13 +60,14 @@ async def _log_api_request(
     try:
         log = ApiLog(
             method=request.method,
-            path=str(request.url.path),
+            endpoint=str(request.url.path),
             status_code=status_code,
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-            partner_name=partner_name,
-            request_body={"order_number": order_number, "error": error},
-            response_time_ms=response_time_ms,
+            source_ip=request.client.host if request.client else "unknown",
+            payload=str({"order_number": order_number, "error": error, "partner_name": partner_name}),
+            error=error,
+            response_time=response_time_ms,
+            success=success,
+            order_number=order_number,
         )
         await log.insert()
     except Exception as e:
@@ -102,9 +114,15 @@ async def create_external_order(
         return JSONResponse(status_code=422, content={"error": msg})
 
     # ── 4. Look up device by fullName ────────────────────────────────────────
-    device = await Device.find_one(
-        Device.full_name == body.device_name,
-        Device.is_active == True,
+    requested_device_name = body.device_name.strip().lower()
+    active_devices = await Device.find(Device.is_active == True).to_list()
+    device = next(
+        (
+            d for d in active_devices
+            if ((d.full_name or "").strip().lower() == requested_device_name)
+            or ((d.name or "").strip().lower() == requested_device_name)
+        ),
+        None,
     )
     if not device:
         msg = f"Device not found: {body.device_name}. Please use a valid device from our catalog."
@@ -113,10 +131,39 @@ async def create_external_order(
 
     # ── 5. Validate network/storage pricing combo if storage provided ────────
     if body.storage:
-        pricing_entry = await Pricing.find_one(
-            Pricing.device_id == str(device.id),
-            Pricing.network == body.network,
-            Pricing.storage == body.storage,
+        requested_network = body.network.strip().lower()
+        requested_storage = body.storage.strip().lower()
+        pricing_collection = Pricing.get_motor_collection()
+        pricing_query = {
+            "$or": [
+                {"device_id": str(device.id)},
+                {"deviceId": str(device.id)},
+            ]
+        }
+        try:
+            device_oid = ObjectId(str(device.id))
+            pricing_query["$or"].extend([
+                {"device_id": device_oid},
+                {"deviceId": device_oid},
+            ])
+        except Exception:
+            pass
+
+        raw_pricing_rows = await pricing_collection.find(pricing_query).to_list(length=None)
+        pricing_rows = []
+        for row in raw_pricing_rows:
+            try:
+                pricing_rows.append(Pricing.model_validate(row))
+            except Exception:
+                continue
+
+        pricing_entry = next(
+            (
+                p for p in pricing_rows
+                if (p.network or "").strip().lower() == requested_network
+                and (p.storage or "").strip().lower() == requested_storage
+            ),
+            None,
         )
         if not pricing_entry:
             msg = f"Invalid configuration: {body.network} / {body.storage} is not available for {body.device_name}. Please check available options."
@@ -184,6 +231,15 @@ async def create_external_order(
             },
         },
     )
+
+
+@router.post("/orders", summary="Create order via partner API")
+async def create_gateway_order(
+    request: Request,
+    body: GatewayOrderSchema,
+    partner=Depends(get_current_partner),
+):
+    return await create_external_order(request, body, partner)
 
 
 @router.get("/test", summary="Test API Gateway (GET)")

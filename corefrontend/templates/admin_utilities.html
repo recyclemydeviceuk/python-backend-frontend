@@ -3,10 +3,10 @@
 {% block page_title %}Utilities{% endblock %}
 
 {% block content %}
-<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage lookup data: storage, conditions, networks, brands, categories and statuses</p>
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage dropdown values used throughout the admin and frontend</p>
 
 <!-- Tab Navigation -->
-<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:1.25rem;background:#f3f4f6;padding:.25rem;border-radius:.875rem;width:fit-content;">
+<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1.25rem;">
   {% set tabs = [
     ('storage','Storage Options'),
     ('conditions','Conditions'),
@@ -17,13 +17,11 @@
     ('payment_statuses','Payment Statuses'),
   ] %}
   {% for tab_key, tab_label in tabs %}
-  {% if active_tab == tab_key %}
-  {% set tab_style = 'padding:.5rem 1rem;border-radius:.625rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;background:#fff;color:#dc2626;box-shadow:0 1px 3px rgba(0,0,0,.1);' %}
-  {% else %}
-  {% set tab_style = 'padding:.5rem 1rem;border-radius:.625rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;color:#6b7280;' %}
-  {% endif %}
-  <a href="/admin-panel/utilities?tab={{ tab_key }}" style="{{ tab_style }}">
+  {% set isActive = active_tab == tab_key %}
+  <a href="/admin-panel/utilities?tab={{ tab_key }}"
+    style="display:inline-flex;align-items:center;gap:.375rem;padding:.5rem 1rem;border-radius:.75rem;font-size:.8125rem;font-weight:600;transition:all .15s;white-space:nowrap;border:1px solid {{ '#dc2626' if isActive else '#e5e7eb' }};background:{{ '#dc2626' if isActive else '#fff' }};color:{{ '#fff' if isActive else '#374151' }};box-shadow:{{ '0 2px 8px rgba(220,38,38,.25)' if isActive else 'none' }};">
     {{ tab_label }}
+    <span style="font-size:.625rem;padding:.125rem .375rem;border-radius:9999px;background:{{ 'rgba(255,255,255,.25)' if isActive else '#f3f4f6' }};color:{{ '#fff' if isActive else '#6b7280' }};">{{ items | length }}</span>
   </a>
   {% endfor %}
 </div>
@@ -38,106 +36,182 @@
   'payment_statuses': 'Payment statuses used to track order payment.',
 } %}
 
+{% set has_color = active_tab in ['order_statuses','payment_statuses'] %}
+
 <div class="card">
+  <!-- Header -->
   <div class="card-header">
-    <div>
-      <h3>{{ dict(tabs)[active_tab] if active_tab in dict(tabs) else '' }}</h3>
-      <p style="font-size:.8125rem;color:#6b7280;margin-top:.25rem;">{{ tab_descriptions.get(active_tab, '') }}</p>
+    <div style="display:flex;align-items:center;gap:.5rem;">
+      <svg style="width:1rem;height:1rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07"/><path d="M19.07 19.07A10 10 0 0 0 4.93 4.93"/></svg>
+      <div>
+        <h3>{% for tk, tl in tabs %}{% if tk == active_tab %}{{ tl }}{% endif %}{% endfor %}</h3>
+        <p style="font-size:.75rem;color:#6b7280;margin-top:.125rem;">{{ tab_descriptions.get(active_tab, '') }}</p>
+      </div>
     </div>
-    <button onclick="document.getElementById('add-form').style.display='flex'" class="btn btn-red btn-sm">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Add New
-    </button>
+    <span style="font-size:.75rem;color:#6b7280;">{{ items | selectattr('is_active') | list | length }} active · {{ items | length }} total</span>
   </div>
 
-  <!-- Add Form -->
-  <div id="add-form" style="display:none;padding:1rem 1.25rem;border-bottom:1px solid #f3f4f6;background:#f9fafb;">
+  <!-- Add New Row -->
+  <div style="padding:1rem 1.25rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
     <form method="post" action="/admin-panel/utilities/{{ active_tab }}/add" style="display:flex;align-items:flex-end;gap:.75rem;flex-wrap:wrap;">
       <div>
         <label class="field-label">Name <span style="color:#dc2626">*</span></label>
-        <input type="text" name="name" class="field-input" placeholder="Enter name…" style="width:200px;" required />
+        <input type="text" name="name" id="newName" class="field-input" placeholder="Add new item…" style="width:200px;" required />
       </div>
-      {% if active_tab in ['order_statuses', 'payment_statuses'] %}
+      {% if has_color %}
       <div>
-        <label class="field-label">Value (code)</label>
-        <input type="text" name="value" class="field-input" placeholder="e.g. PENDING" style="width:140px;" />
+        <label class="field-label">Value/Code</label>
+        <input type="text" name="value" class="field-input" placeholder="e.g. PENDING" style="width:130px;" />
       </div>
       <div>
-        <label class="field-label">Badge Color Classes</label>
-        <input type="text" name="color" class="field-input" placeholder="e.g. bg-yellow-100 text-yellow-700" style="width:220px;" />
+        <label class="field-label">Badge Color</label>
+        <select name="color" id="newColor" onchange="updatePreview()" class="field-input" style="width:160px;">
+          <option value="">No color</option>
+          <option value="bg-blue-100 text-blue-700">Blue</option>
+          <option value="bg-purple-100 text-purple-700">Purple</option>
+          <option value="bg-indigo-100 text-indigo-700">Indigo</option>
+          <option value="bg-green-100 text-green-700">Green</option>
+          <option value="bg-emerald-100 text-emerald-700">Emerald</option>
+          <option value="bg-yellow-100 text-yellow-700">Yellow</option>
+          <option value="bg-orange-100 text-orange-700">Orange</option>
+          <option value="bg-red-100 text-red-700">Red</option>
+          <option value="bg-gray-100 text-gray-700">Gray</option>
+          <option value="bg-amber-100 text-amber-700">Amber</option>
+        </select>
+      </div>
+      <div id="colorPreview" style="display:none;align-items:center;">
+        <span id="previewBadge" style="font-size:.75rem;font-weight:600;padding:.25rem .75rem;border-radius:9999px;background:#f3f4f6;color:#374151;">Preview</span>
       </div>
       {% endif %}
-      <button type="submit" class="btn btn-green btn-sm">Add</button>
-      <button type="button" onclick="document.getElementById('add-form').style.display='none'" class="btn btn-gray btn-sm">Cancel</button>
+      <button type="submit" class="btn btn-red btn-sm">
+        <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add
+      </button>
     </form>
   </div>
 
   <!-- Items List -->
   {% if items %}
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th style="width:2.5rem;">#</th>
-          <th>Name</th>
-          {% if active_tab in ['order_statuses','payment_statuses'] %}<th>Value</th><th>Badge</th>{% endif %}
-          <th>Active</th>
-          <th style="width:160px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr id="row-{{ item.id }}">
-          <td style="color:#9ca3af;font-size:.75rem;">{{ loop.index }}</td>
-          <td>
-            <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/update" style="display:flex;align-items:center;gap:.5rem;">
-              <input type="text" name="name" value="{{ item.name }}" class="field-input" style="width:180px;padding:.375rem .5rem;" />
-              {% if active_tab in ['order_statuses','payment_statuses'] %}
-              <input type="text" name="value" value="{{ item.value or '' }}" class="field-input" style="width:130px;padding:.375rem .5rem;" placeholder="CODE" />
-              <input type="text" name="color" value="{{ item.color or '' }}" class="field-input" style="width:200px;padding:.375rem .5rem;" placeholder="bg-... text-..." />
-              {% endif %}
-              <button type="submit" class="btn btn-sm" style="background:#d1fae5;color:#059669;border:1px solid #a7f3d0;padding:.375rem .5rem;" title="Save">
-                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </button>
-            </form>
-          </td>
-          {% if active_tab in ['order_statuses','payment_statuses'] %}
-          <td></td><td>
-            {% if item.color %}
-            <span style="font-size:.6875rem;padding:.25rem .625rem;border-radius:9999px;" class="{{ item.color }}">{{ item.name }}</span>
-            {% endif %}
-          </td>
+  <div>
+    {% for item in items %}
+    <div id="row-{{ item.id }}" style="display:flex;align-items:center;gap:.75rem;padding:.875rem 1.25rem;border-bottom:1px solid #f3f4f6;transition:background .1s;{% if not item.is_active %}opacity:.45;{% endif %}" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'">
+
+      <!-- Drag handle icon -->
+      <svg style="width:1rem;height:1rem;color:#d1d5db;flex-shrink:0;cursor:grab" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+
+      <!-- Inline Edit Form -->
+      <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/update" style="display:flex;align-items:center;gap:.5rem;flex:1;flex-wrap:wrap;">
+        <input type="text" name="name" value="{{ item.name }}" class="field-input" style="width:180px;padding:.375rem .625rem;" required />
+        {% if has_color %}
+        <input type="text" name="value" value="{{ item.value or '' }}" class="field-input" style="width:120px;padding:.375rem .5rem;" placeholder="CODE" />
+        <select name="color" class="field-input" style="width:140px;padding:.375rem .5rem;">
+          <option value="">No color</option>
+          {% for cval, clabel in [('bg-blue-100 text-blue-700','Blue'),('bg-purple-100 text-purple-700','Purple'),('bg-indigo-100 text-indigo-700','Indigo'),('bg-green-100 text-green-700','Green'),('bg-emerald-100 text-emerald-700','Emerald'),('bg-yellow-100 text-yellow-700','Yellow'),('bg-orange-100 text-orange-700','Orange'),('bg-red-100 text-red-700','Red'),('bg-gray-100 text-gray-700','Gray'),('bg-amber-100 text-amber-700','Amber')] %}
+          <option value="{{ cval }}" {% if item.color == cval %}selected{% endif %}>{{ clabel }}</option>
+          {% endfor %}
+        </select>
+        {% if item.color %}
+        <span style="font-size:.6875rem;font-weight:600;padding:.25rem .625rem;border-radius:9999px;" class="{{ item.color }}">{{ item.name }}</span>
+        {% endif %}
+        {% endif %}
+        <button type="submit" class="btn btn-sm" style="background:#d1fae5;color:#059669;border:1px solid #a7f3d0;padding:.375rem .5rem;flex-shrink:0;" title="Save changes">
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </button>
+      </form>
+
+      <!-- Toggle Active -->
+      <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/toggle" style="flex-shrink:0;">
+        <button type="submit" class="btn btn-sm" title="{{ 'Deactivate' if item.is_active else 'Activate' }}"
+          style="padding:.375rem .625rem;{% if item.is_active %}background:#d1fae5;color:#059669;border:1px solid #a7f3d0;{% else %}background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;{% endif %}">
+          {% if item.is_active %}
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>
+          {% else %}
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>
           {% endif %}
-          <td>
-            <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/toggle">
-              {% if item.is_active %}
-              {% set toggle_style = 'padding:.375rem .5rem;background:#d1fae5;color:#059669;border:1px solid #a7f3d0;' %}
-              {% else %}
-              {% set toggle_style = 'padding:.375rem .5rem;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;' %}
-              {% endif %}
-              <button type="submit" class="btn btn-sm" style="{{ toggle_style }}">
-                {{ 'Active' if item.is_active else 'Inactive' }}
-              </button>
-            </form>
-          </td>
-          <td>
-            <form method="post" action="/admin-panel/utilities/{{ active_tab }}/{{ item.id }}/delete" onsubmit="return confirm('Delete {{ item.name }}?')" style="display:inline;">
-              <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.375rem .5rem;">
-                <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-              </button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </button>
+      </form>
+
+      <span style="font-size:.6875rem;font-weight:600;padding:.25rem .5rem;border-radius:9999px;flex-shrink:0;{% if item.is_active %}background:#d1fae5;color:#065f46;{% else %}background:#f3f4f6;color:#6b7280;{% endif %}">
+        {{ 'Active' if item.is_active else 'Inactive' }}
+      </span>
+
+      <!-- Delete -->
+      <button onclick="openUtilDeleteModal('{{ item.id }}','{{ item.name | replace("'","\\'")}}')"
+        class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.375rem .5rem;flex-shrink:0;" title="Delete">
+        <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      </button>
+    </div>
+    {% endfor %}
   </div>
   {% else %}
   <div class="empty-state">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07"/><path d="M19.07 19.07A10 10 0 0 0 4.93 4.93"/></svg>
     <p>No items yet</p>
-    <small>Click "Add New" to create the first entry</small>
+    <small>Add the first item using the form above</small>
   </div>
   {% endif %}
 </div>
+
+<!-- Delete Confirm Modal -->
+<div id="utilDeleteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:1rem;padding:1.5rem;max-width:22rem;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="width:3rem;height:3rem;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+      <svg style="width:1.5rem;height:1.5rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    </div>
+    <h3 style="font-weight:700;text-align:center;margin-bottom:.375rem;">Delete Item?</h3>
+    <p id="utilDeleteName" style="font-size:.875rem;color:#6b7280;text-align:center;margin-bottom:1.25rem;"></p>
+    <div style="display:flex;gap:.75rem;">
+      <button onclick="closeUtilDeleteModal()" style="flex:1;padding:.625rem;border-radius:.75rem;border:1px solid #e5e7eb;font-weight:600;font-size:.875rem;cursor:pointer;background:#fff;">Cancel</button>
+      <form id="utilDeleteForm" method="post" style="flex:1;">
+        <button type="submit" style="width:100%;padding:.625rem;border-radius:.75rem;background:#dc2626;color:#fff;font-weight:600;font-size:.875rem;border:none;cursor:pointer;">Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openUtilDeleteModal(id, name) {
+  document.getElementById('utilDeleteForm').action = '/admin-panel/utilities/{{ active_tab }}/' + id + '/delete';
+  document.getElementById('utilDeleteName').textContent = 'Delete "' + name + '"? This cannot be undone.';
+  document.getElementById('utilDeleteModal').style.display = 'flex';
+}
+function closeUtilDeleteModal() {
+  document.getElementById('utilDeleteModal').style.display = 'none';
+}
+document.getElementById('utilDeleteModal').addEventListener('click', function(e) {
+  if (e.target === this) closeUtilDeleteModal();
+});
+
+{% if has_color %}
+function updatePreview() {
+  var sel = document.getElementById('newColor');
+  var name = document.getElementById('newName').value || 'Preview';
+  var badge = document.getElementById('previewBadge');
+  var preview = document.getElementById('colorPreview');
+  if (sel.value) {
+    preview.style.display = 'flex';
+    badge.textContent = name;
+    // Apply tailwind-like inline styles based on selection
+    var colorMap = {
+      'bg-blue-100 text-blue-700': ['#dbeafe','#1d4ed8'],
+      'bg-purple-100 text-purple-700': ['#f3e8ff','#7e22ce'],
+      'bg-indigo-100 text-indigo-700': ['#e0e7ff','#4338ca'],
+      'bg-green-100 text-green-700': ['#dcfce7','#15803d'],
+      'bg-emerald-100 text-emerald-700': ['#d1fae5','#047857'],
+      'bg-yellow-100 text-yellow-700': ['#fef9c3','#a16207'],
+      'bg-orange-100 text-orange-700': ['#ffedd5','#c2410c'],
+      'bg-red-100 text-red-700': ['#fee2e2','#b91c1c'],
+      'bg-gray-100 text-gray-700': ['#f3f4f6','#374151'],
+      'bg-amber-100 text-amber-700': ['#fef3c7','#b45309'],
+    };
+    var colors = colorMap[sel.value] || ['#f3f4f6','#374151'];
+    badge.style.background = colors[0];
+    badge.style.color = colors[1];
+  } else {
+    preview.style.display = 'none';
+  }
+}
+document.getElementById('newName').addEventListener('input', updatePreview);
+{% endif %}
+</script>
 {% endblock %}

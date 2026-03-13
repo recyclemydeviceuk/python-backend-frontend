@@ -8,10 +8,35 @@ from app.utils.logger import logger
 
 _request_counts: dict = defaultdict(list)
 
+# IPs that are never rate-limited (localhost / loopback)
+_EXEMPT_IPS = {"127.0.0.1", "::1", "localhost"}
+
+# Admin panel / docs paths that should never be rate-limited
+_EXEMPT_PATH_PREFIXES = (
+    "/docs",
+    "/redoc",
+    "/openapi",
+    "/admin",
+)
+
 
 class RateLimiterMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         client_ip = request.client.host if request.client else "unknown"
+
+        # Always exempt localhost and admin paths
+        if client_ip in _EXEMPT_IPS:
+            return await call_next(request)
+
+        path = request.url.path
+        if any(path.startswith(p) for p in _EXEMPT_PATH_PREFIXES):
+            return await call_next(request)
+
+        # Exempt requests with a valid Bearer token (admin panel users)
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            return await call_next(request)
+
         now = time.time()
         window = settings.RATE_LIMIT_WINDOW_SECONDS
         max_req = settings.RATE_LIMIT_MAX_REQUESTS

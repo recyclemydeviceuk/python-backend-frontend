@@ -37,112 +37,321 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
 
-  <!-- Endpoint Info -->
+  <!-- Left: Endpoint Docs -->
   <div style="display:flex;flex-direction:column;gap:1.25rem;">
     <div class="card">
-      <div class="card-header"><h3>Endpoint Reference</h3></div>
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <svg style="width:1rem;height:1rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <h3>Integration Endpoint</h3>
+        </div>
+      </div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
-        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:.875rem;">
-          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.375rem;">Endpoint</p>
-          <code style="font-size:.875rem;font-weight:700;color:#dc2626;font-family:monospace;">POST /decisiontech</code>
+        <!-- Method + Path -->
+        <div style="display:flex;align-items:center;gap:.75rem;background:#f9fafb;border-radius:.75rem;padding:.75rem 1rem;">
+          <span style="font-size:.75rem;font-weight:700;color:#059669;background:#d1fae5;padding:.25rem .5rem;border-radius:.375rem;">POST</span>
+          <code style="font-size:.875rem;color:#111827;flex:1;">/decisiontech</code>
+          <button onclick="copyEndpoint()" id="copyEndpointBtn" style="color:#6b7280;background:none;border:none;cursor:pointer;padding:.25rem;" title="Copy">
+            <svg style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
         </div>
-        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:.875rem;">
-          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Authentication</p>
-          <code style="font-size:.8125rem;font-family:monospace;color:#374151;display:block;">X-Partner-Key: your_api_key</code>
+        <!-- Auth header -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:.75rem;padding:.75rem 1rem;">
+          <p style="font-size:.6875rem;font-weight:600;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.375rem;">Required Header</p>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <code style="font-size:.75rem;font-family:monospace;color:#1d4ed8;background:#dbeafe;padding:.25rem .5rem;border-radius:.25rem;">X-Partner-Key</code>
+            <span style="font-size:.75rem;color:#3b82f6;">Your API key — get from Partners page</span>
+          </div>
         </div>
-        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:.875rem;">
-          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Sample Payload</p>
-          <pre style="font-size:.75rem;font-family:monospace;color:#374151;white-space:pre-wrap;line-height:1.6;">{
+        <!-- Required fields -->
+        <div>
+          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Required Fields</p>
+          <div style="display:flex;flex-direction:column;gap:.25rem;">
+            {% for field, ftype, desc in [
+              ('customer_name','string','Customer full name'),
+              ('customer_phone','string','UK mobile number'),
+              ('customer_address','string','Full postal address'),
+              ('postage_method','"label"|"postbag"','Shipping method'),
+              ('device_name','string','Full device model name'),
+              ('network','string','"Unlocked", "EE", etc.'),
+              ('offered_price','number','Price offered to customer'),
+              ('device_grade','"NEW"|"GOOD"|"BROKEN"','Device condition'),
+            ] %}
+            <div style="display:flex;align-items:flex-start;gap:.625rem;padding:.375rem 0;border-bottom:1px solid #f3f4f6;">
+              <code style="font-size:.6875rem;font-family:monospace;color:#dc2626;background:#fef2f2;padding:.125rem .375rem;border-radius:.25rem;white-space:nowrap;flex-shrink:0;">{{ field }}</code>
+              <code style="font-size:.6875rem;color:#2563eb;font-family:monospace;white-space:nowrap;flex-shrink:0;">{{ ftype }}</code>
+              <span style="font-size:.6875rem;color:#6b7280;">{{ desc }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <!-- Optional fields -->
+        <div>
+          <p style="font-size:.6875rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;">Optional Fields</p>
+          <div style="display:flex;flex-direction:column;gap:.25rem;">
+            {% for field, ftype, desc in [
+              ('customer_email','string','Customer email'),
+              ('transaction_id','string','Partner transaction reference'),
+              ('device_id','string','Your device catalogue ID'),
+              ('storage','string','Device storage capacity'),
+              ('bank_name','string','Customer bank name'),
+              ('account_number','string','Customer account number'),
+              ('sort_code','string','Customer sort code'),
+            ] %}
+            <div style="display:flex;align-items:flex-start;gap:.625rem;padding:.375rem 0;border-bottom:1px solid #f3f4f6;">
+              <code style="font-size:.6875rem;font-family:monospace;color:#374151;background:#f3f4f6;padding:.125rem .375rem;border-radius:.25rem;white-space:nowrap;flex-shrink:0;">{{ field }}</code>
+              <code style="font-size:.6875rem;color:#2563eb;font-family:monospace;white-space:nowrap;flex-shrink:0;">{{ ftype }}</code>
+              <span style="font-size:.6875rem;color:#6b7280;">{{ desc }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security -->
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:1rem;padding:1.25rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;">
+        <svg style="width:1rem;height:1rem;color:#d97706" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <h3 style="font-weight:700;color:#92400e;font-size:.875rem;">Security Requirements</h3>
+      </div>
+      <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;">
+        <li style="font-size:.75rem;color:#b45309;display:flex;align-items:flex-start;gap:.375rem;"><span style="font-weight:700;">•</span> <code style="background:#fef3c7;padding:.125rem .375rem;border-radius:.25rem;font-family:monospace;">X-Partner-Key</code> header required on every request — missing or invalid key returns 401</li>
+        <li style="font-size:.75rem;color:#b45309;display:flex;align-items:flex-start;gap:.375rem;"><span style="font-weight:700;">•</span> HTTPS only — all HTTP connections will be rejected</li>
+        <li style="font-size:.75rem;color:#b45309;display:flex;align-items:flex-start;gap:.375rem;"><span style="font-weight:700;">•</span> Bank details encrypted at rest — never log raw payout data</li>
+        <li style="font-size:.75rem;color:#b45309;display:flex;align-items:flex-start;gap:.375rem;"><span style="font-weight:700;">•</span> All requests are logged regardless of outcome</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Right: API Tester -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <svg style="width:1rem;height:1rem;color:#7c3aed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <h3>Test API Order</h3>
+        <span style="font-size:.75rem;color:#6b7280;">(writes into your order list)</span>
+      </div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+      <!-- JSON Payload -->
+      <div>
+        <label class="field-label">JSON Payload</label>
+        <textarea id="apiPayload" rows="14" style="width:100%;padding:.75rem;font-size:.75rem;font-family:monospace;border:1px solid #e5e7eb;border-radius:.75rem;resize:vertical;background:#fff;color:#111827;line-height:1.5;focus:outline:none;" spellcheck="false">{
   "customer_name": "John Smith",
-  "customer_phone": "07700900000",
+  "customer_phone": "03333356679",
   "customer_email": "john@example.com",
-  "customer_address": "12 Baker St, London",
+  "customer_address": "12 Baker Street, London, W1U 3BT",
   "postage_method": "label",
   "bank_name": "Barclays",
   "account_number": "12345678",
   "sort_code": "20-00-00",
-  "device_id": "...",
-  "device_name": "Apple iPhone 16 Pro",
+  "device_id": "d1",
+  "device_name": "Apple iPhone 16 Pro Max",
   "network": "Unlocked",
   "offered_price": 655,
   "device_grade": "GOOD",
-  "storage": "256GB"
-}</pre>
-        </div>
+  "storage": "256GB",
+  "transaction_id": "TXN-DEMO-001"
+}</textarea>
+        <p id="payloadErr" style="display:none;font-size:.75rem;color:#dc2626;margin-top:.375rem;display:none;">Invalid JSON payload</p>
       </div>
-    </div>
 
-    <!-- Security Info -->
-    <div class="card">
-      <div class="card-header">
-        <div style="display:flex;align-items:center;gap:.5rem;">
-          <svg style="width:1.125rem;height:1.125rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <h3>Security</h3>
+      <!-- Partner Key -->
+      <div>
+        <label class="field-label" style="display:flex;align-items:center;gap:.375rem;">
+          <svg style="width:.8125rem;height:.8125rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          X-Partner-Key Header
+        </label>
+        <div style="position:relative;">
+          <input type="password" id="partnerKeyInput" placeholder="cmm_pk_xxxxxxxxxxxxxxxx..." class="field-input" style="padding-right:2.5rem;font-family:monospace;font-size:.8125rem;" />
+          <button type="button" onclick="toggleKeyVisible()" style="position:absolute;right:.625rem;top:50%;transform:translateY(-50%);border:none;background:none;color:#9ca3af;cursor:pointer;">
+            <svg id="eyeIcon" style="width:1rem;height:1rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
         </div>
+        <p style="font-size:.6875rem;color:#d97706;margin-top:.25rem;display:flex;align-items:center;gap:.25rem;">
+          <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Required — get your key from the <a href="/admin-panel/partners" style="color:#d97706;font-weight:600;">Partners page</a>
+        </p>
       </div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:.625rem;">
-        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
-          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          API key required in <code style="background:#f3f4f6;padding:.125rem .375rem;border-radius:.25rem;">X-Partner-Key</code> header
+
+      <!-- Buttons -->
+      <div style="display:flex;gap:.75rem;">
+        <button onclick="sendApiTest()" id="sendBtn" style="flex:1;padding:.625rem;background:#dc2626;color:#fff;border:none;border-radius:.75rem;font-weight:600;font-size:.875rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;">
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Request
+        </button>
+        <button onclick="resetPayload()" style="padding:.625rem .875rem;border:1px solid #e5e7eb;background:#fff;border-radius:.75rem;font-size:.875rem;cursor:pointer;color:#374151;" title="Reset to sample">
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+
+      <!-- Result -->
+      <div id="testResult" style="display:none;border-radius:.75rem;padding:1rem;border:1px solid #e5e7eb;">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem;">
+          <span id="resultIcon"></span>
+          <span id="resultTitle" style="font-size:.875rem;font-weight:700;"></span>
         </div>
-        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
-          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          Rate limiting: 100 requests/minute per partner
-        </div>
-        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
-          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          All requests logged with IP and response time
-        </div>
-        <div style="display:flex;align-items:center;gap:.625rem;font-size:.8125rem;color:#374151;">
-          <svg style="width:.875rem;height:.875rem;color:#059669;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          Manage keys in <a href="/admin-panel/partners" style="color:#dc2626;font-weight:600;">Partners</a> section
-        </div>
+        <p id="resultMsg" style="font-size:.75rem;"></p>
       </div>
     </div>
   </div>
-
-  <!-- API Logs -->
-  <div class="card">
-    <div class="card-header">
-      <h3>Recent API Logs</h3>
-      <span style="font-size:.75rem;color:#6b7280;">Last {{ logs | length }} requests</span>
-    </div>
-    {% if logs %}
-    <div style="max-height:600px;overflow-y:auto;">
-      {% for log in logs %}
-      <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1.25rem;border-bottom:1px solid #f3f4f6;">
-        {% if log.success %}
-        <svg style="width:1rem;height:1rem;color:#059669;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-        {% else %}
-        <svg style="width:1rem;height:1rem;color:#dc2626;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-        {% endif %}
-        <div style="flex:1;min-width:0;">
-          <p style="font-size:.8125rem;font-weight:600;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            {% if log.success %}{{ log.order_number or 'Success' }}{% else %}{{ log.error or 'Failed' }}{% endif %}
-          </p>
-          <p style="font-size:.75rem;color:#6b7280;margin-top:.125rem;">
-            {{ log.source_ip or '—' }} · {{ log.response_time or 0 }}ms
-            {% if log.partner_name %} · <span style="color:#7c3aed;font-weight:500;">{{ log.partner_name }}</span>{% endif %}
-          </p>
-          <p style="font-size:.6875rem;color:#9ca3af;margin-top:.125rem;">{{ log.created_at.strftime('%d %b %Y %H:%M') if log.created_at else '' }}</p>
-        </div>
-        <span style="font-size:.6875rem;font-weight:700;padding:.25rem .5rem;border-radius:.375rem;flex-shrink:0;
-          {% if log.status_code and log.status_code < 300 %}background:#d1fae5;color:#065f46;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">
-          {{ log.status_code or '?' }}
-        </span>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-state">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
-      <p>No API requests yet</p>
-      <small>Logs will appear here once partners start sending requests</small>
-    </div>
-    {% endif %}
-  </div>
-
 </div>
+
+<!-- Full Request Logs Table -->
+<div class="card">
+  <div class="card-header">
+    <div style="display:flex;align-items:center;gap:.5rem;">
+      <svg style="width:1rem;height:1rem;color:#374151" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <h3>Request Logs</h3>
+      <span style="font-size:.75rem;color:#6b7280;">{{ logs | length }} total</span>
+    </div>
+  </div>
+  {% if logs %}
+  <div class="table-wrap">
+    <table style="min-width:900px;">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Source IP</th>
+          <th>Status</th>
+          <th>Order #</th>
+          <th>Response</th>
+          <th>Error</th>
+          <th>Payload</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="font-size:.75rem;font-family:monospace;white-space:nowrap;color:#6b7280;">
+            {{ log.timestamp.strftime('%d/%m/%Y %H:%M:%S') if log.timestamp else (log.created_at.strftime('%d/%m/%Y %H:%M:%S') if log.created_at else '—') }}
+          </td>
+          <td style="font-size:.75rem;font-family:monospace;color:#374151;">{{ log.source_ip or '—' }}</td>
+          <td>
+            <span style="font-size:.6875rem;font-weight:700;padding:.25rem .5rem;border-radius:9999px;{% if log.success %}background:#d1fae5;color:#065f46;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">
+              {{ log.status_code or '?' }}
+            </span>
+          </td>
+          <td style="font-size:.75rem;color:#374151;">{{ ('#' + log.order_number) if log.order_number else '—' }}</td>
+          <td style="font-size:.75rem;color:#374151;">{{ (log.response_time | string + 'ms') if log.response_time is not none else '—' }}</td>
+          <td style="font-size:.75rem;color:#6b7280;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ log.error or '' }}">{{ log.error or '—' }}</td>
+          <td>
+            <button onclick="togglePayload('payload-{{ loop.index }}')" style="font-size:.75rem;color:#2563eb;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:.25rem;">
+              <svg id="chevron-{{ loop.index }}" style="width:.875rem;height:.875rem;transition:transform .2s" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              View
+            </button>
+          </td>
+        </tr>
+        <tr id="payload-{{ loop.index }}" style="display:none;background:#f9fafb;">
+          <td colspan="7" style="padding:.75rem 1rem;">
+            <pre id="payload-pre-{{ loop.index }}" style="font-size:.6875rem;font-family:monospace;color:#374151;white-space:pre-wrap;word-break:break-all;background:#fff;border:1px solid #e5e7eb;border-radius:.75rem;padding:.75rem;max-height:12rem;overflow-y:auto;">{{ log.payload or '{}' }}</pre>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+    <p>No API requests logged yet</p>
+    <small>Logs will appear here once partners start sending requests</small>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+var SAMPLE_PAYLOAD = {
+  customer_name: 'John Smith', customer_phone: '03333356679',
+  customer_email: 'john@example.com', customer_address: '12 Baker Street, London, W1U 3BT',
+  postage_method: 'label', bank_name: 'Barclays', account_number: '12345678',
+  sort_code: '20-00-00', device_id: 'd1', device_name: 'Apple iPhone 16 Pro Max',
+  network: 'Unlocked', offered_price: 655, device_grade: 'GOOD', storage: '256GB',
+  transaction_id: 'TXN-DEMO-001'
+};
+
+function resetPayload() {
+  document.getElementById('apiPayload').value = JSON.stringify(SAMPLE_PAYLOAD, null, 2);
+}
+
+function toggleKeyVisible() {
+  var inp = document.getElementById('partnerKeyInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function copyEndpoint() {
+  navigator.clipboard.writeText('POST /decisiontech');
+  var btn = document.getElementById('copyEndpointBtn');
+  btn.style.color = '#059669';
+  setTimeout(function() { btn.style.color = '#6b7280'; }, 1500);
+}
+
+function togglePayload(id) {
+  var row = document.getElementById(id);
+  var idx = id.split('-')[1];
+  var chevron = document.getElementById('chevron-' + idx);
+  var visible = row.style.display !== 'none';
+  row.style.display = visible ? 'none' : 'table-row';
+  chevron.style.transform = visible ? '' : 'rotate(180deg)';
+  // Pretty-print JSON if not done
+  if (!visible) {
+    var pre = document.getElementById('payload-pre-' + idx);
+    try { pre.textContent = JSON.stringify(JSON.parse(pre.textContent), null, 2); } catch(e) {}
+  }
+}
+
+async function sendApiTest() {
+  var payloadEl = document.getElementById('apiPayload');
+  var errEl = document.getElementById('payloadErr');
+  var resultEl = document.getElementById('testResult');
+  var sendBtn = document.getElementById('sendBtn');
+  errEl.style.display = 'none';
+  var parsed;
+  try { parsed = JSON.parse(payloadEl.value); }
+  catch(e) { errEl.style.display = 'block'; return; }
+
+  var partnerKey = document.getElementById('partnerKeyInput').value.trim();
+  sendBtn.innerHTML = '<svg style="width:.875rem;height:.875rem;animation:spin 1s linear infinite" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Processing...';
+  sendBtn.disabled = true;
+
+  try {
+    var headers = { 'Content-Type': 'application/json' };
+    if (partnerKey) headers['X-Partner-Key'] = partnerKey;
+    var res = await fetch('/api/gateway/decisiontech', { method: 'POST', headers: headers, body: JSON.stringify(parsed) });
+    var data = await res.json();
+    resultEl.style.display = 'block';
+    if (res.ok && data.success !== false) {
+      resultEl.style.background = '#f0fdf4'; resultEl.style.borderColor = '#86efac';
+      document.getElementById('resultIcon').innerHTML = '<svg style="width:1rem;height:1rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+      document.getElementById('resultTitle').style.color = '#059669';
+      document.getElementById('resultTitle').textContent = 'Order Created Successfully';
+      document.getElementById('resultMsg').style.color = '#166534';
+      document.getElementById('resultMsg').textContent = 'Order Number: #' + (data.data?.order_number || data.order_number || 'N/A');
+    } else {
+      resultEl.style.background = '#fef2f2'; resultEl.style.borderColor = '#fca5a5';
+      document.getElementById('resultIcon').innerHTML = '<svg style="width:1rem;height:1rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+      document.getElementById('resultTitle').style.color = '#dc2626';
+      document.getElementById('resultTitle').textContent = 'Request Failed';
+      document.getElementById('resultMsg').style.color = '#991b1b';
+      document.getElementById('resultMsg').textContent = data.detail || data.message || data.error || 'Unknown error';
+    }
+  } catch(e) {
+    resultEl.style.display = 'block';
+    resultEl.style.background = '#fef2f2'; resultEl.style.borderColor = '#fca5a5';
+    document.getElementById('resultTitle').textContent = 'Request Failed';
+    document.getElementById('resultTitle').style.color = '#dc2626';
+    document.getElementById('resultMsg').textContent = 'Network error or invalid response';
+    document.getElementById('resultMsg').style.color = '#991b1b';
+  } finally {
+    sendBtn.innerHTML = '<svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Request';
+    sendBtn.disabled = false;
+  }
+}
+</script>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
 {% endblock %}

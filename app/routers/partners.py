@@ -30,10 +30,11 @@ async def get_partner(partner_id: str):
 
 @router.post("", summary="Create partner", dependencies=[Depends(get_current_admin)])
 async def create_partner(body: CreatePartnerSchema):
-    raw_key = _make_raw_key()
+    key_data = Partner.generate_key()
     partner = Partner(
         name=body.name,
-        key_hash=Partner.hash_key(raw_key),
+        key_hash=key_data["key_hash"],
+        key_prefix=key_data["key_prefix"],
         allowed_ips=body.allowed_ips,
         rate_limit=body.rate_limit,
         notes=body.notes,
@@ -41,7 +42,7 @@ async def create_partner(body: CreatePartnerSchema):
     await partner.insert()
     logger.info(f"Partner created: {partner.name}")
     data = _serialize(partner)
-    data["api_key"] = raw_key  # return raw key ONCE at creation
+    data["api_key"] = key_data["plain_key"]
     return created_response({"partner": data}, "Partner created successfully. Save the api_key — it will not be shown again.")
 
 
@@ -57,16 +58,28 @@ async def update_partner(partner_id: str, body: UpdatePartnerSchema):
     return success_response({"partner": _serialize(partner)}, "Partner updated")
 
 
+@router.patch("/{partner_id}/toggle", summary="Toggle partner active status", dependencies=[Depends(get_current_admin)])
+async def toggle_partner(partner_id: str):
+    partner = await Partner.get(partner_id)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    partner.is_active = not partner.is_active
+    partner.updated_at = datetime.utcnow()
+    await partner.save()
+    return success_response({"partner": _serialize(partner)}, "Partner status toggled")
+
+
 @router.post("/{partner_id}/regenerate-key", summary="Regenerate API key", dependencies=[Depends(get_current_admin)])
 async def regenerate_key(partner_id: str):
     partner = await Partner.get(partner_id)
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
-    raw_key = _make_raw_key()
-    partner.key_hash = Partner.hash_key(raw_key)
+    key_data = Partner.generate_key()
+    partner.key_hash = key_data["key_hash"]
+    partner.key_prefix = key_data["key_prefix"]
     partner.updated_at = datetime.utcnow()
     await partner.save()
-    return success_response({"api_key": raw_key}, "API key regenerated. Save it — it will not be shown again.")
+    return success_response({"api_key": key_data["plain_key"]}, "API key regenerated. Save it — it will not be shown again.")
 
 
 @router.delete("/{partner_id}", summary="Delete partner", dependencies=[Depends(get_current_admin)])
@@ -79,10 +92,16 @@ async def delete_partner(partner_id: str):
 
 
 def _serialize(p: Partner) -> dict:
+    key_prefix = getattr(p, 'key_prefix', None) or 'legacy'
     return {
-        "id": str(p.id), "name": p.name,
-        "is_active": p.is_active, "allowed_ips": p.allowed_ips,
-        "rate_limit": p.rate_limit, "total_orders": p.total_orders,
+        "id": str(p.id), "_id": str(p.id), "name": p.name,
+        "isActive": p.is_active, "is_active": p.is_active,
+        "allowedIps": p.allowed_ips, "allowed_ips": p.allowed_ips,
+        "rateLimit": p.rate_limit, "rate_limit": p.rate_limit,
+        "totalOrders": p.total_orders, "total_orders": p.total_orders,
+        "keyPrefix": key_prefix,
+        "lastUsedAt": p.last_used_at.isoformat() if p.last_used_at else None,
         "last_used_at": p.last_used_at.isoformat() if p.last_used_at else None,
-        "notes": p.notes, "created_at": p.created_at.isoformat(),
+        "notes": p.notes,
+        "createdAt": p.created_at.isoformat(), "created_at": p.created_at.isoformat(),
     }

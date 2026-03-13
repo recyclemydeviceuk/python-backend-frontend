@@ -13,15 +13,30 @@ router = APIRouter(prefix="/pricing", tags=["Pricing"])
 
 
 @router.get("", summary="Get all pricing (public)")
-async def get_all_pricing(device_id: Optional[str] = None, network: Optional[str] = None, storage: Optional[str] = None):
+async def get_all_pricing(
+    device_id: Optional[str] = None,
+    deviceId: Optional[str] = None,
+    network: Optional[str] = None,
+    storage: Optional[str] = None,
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
+):
+    did = device_id or deviceId
     filters = []
-    if device_id:
-        filters.append(Pricing.device_id == device_id)
+    if did:
+        filters.append(Pricing.device_id == did)
     if network:
         filters.append(Pricing.network == network)
     if storage:
         filters.append(Pricing.storage == storage)
-    pricing = await Pricing.find(*filters).to_list()
+    q = Pricing.find(*filters)
+    total = await q.count()
+    if page and limit:
+        skip = (page - 1) * limit
+        pricing = await q.skip(skip).limit(limit).to_list()
+        from app.utils.response import paginated_response
+        return paginated_response([_serialize(p) for p in pricing], page, limit, total)
+    pricing = await q.to_list()
     return success_response({"pricing": [_serialize(p) for p in pricing]})
 
 
@@ -85,7 +100,15 @@ async def create_pricing(body: CreatePricingSchema):
     if existing:
         raise HTTPException(status_code=409, detail="Pricing entry already exists for this device/network/storage combination")
 
-    pricing = Pricing(**body.dict())
+    pricing = Pricing(
+        device_id=body.device_id,
+        device_name=body.device_name,
+        network=body.network,
+        storage=body.storage,
+        grade_new=body.grade_new,
+        grade_good=body.grade_good,
+        grade_broken=body.grade_broken,
+    )
     await pricing.insert()
     return created_response({"pricing": _serialize(pricing)}, "Pricing created successfully")
 
@@ -96,9 +119,12 @@ async def update_pricing(pricing_id: str, body: UpdatePricingSchema):
     if not pricing:
         raise HTTPException(status_code=404, detail="Pricing entry not found")
 
-    update_data = body.dict(exclude_unset=True)
-    for k, v in update_data.items():
-        setattr(pricing, k, v)
+    if body.grade_new is not None:
+        pricing.grade_new = body.grade_new
+    if body.grade_good is not None:
+        pricing.grade_good = body.grade_good
+    if body.grade_broken is not None:
+        pricing.grade_broken = body.grade_broken
     pricing.updated_at = datetime.utcnow()
     await pricing.save()
     return success_response({"pricing": _serialize(pricing)}, "Pricing updated successfully")
@@ -111,6 +137,29 @@ async def delete_pricing(pricing_id: str):
         raise HTTPException(status_code=404, detail="Pricing entry not found")
     await pricing.delete()
     return success_response({"message": "Pricing deleted successfully"})
+
+
+@router.post("/bulk-update", summary="Bulk update pricing by ID list", dependencies=[Depends(get_current_admin)])
+async def bulk_update_alias(body: dict):
+    updates = body.get("updates", [])
+    results = []
+    for upd in updates:
+        pid = upd.get("id") or upd.get("_id")
+        if not pid:
+            continue
+        pricing = await Pricing.get(pid)
+        if not pricing:
+            continue
+        if upd.get("gradeNew") is not None:
+            pricing.grade_new = upd["gradeNew"]
+        if upd.get("gradeGood") is not None:
+            pricing.grade_good = upd["gradeGood"]
+        if upd.get("gradeBroken") is not None:
+            pricing.grade_broken = upd["gradeBroken"]
+        pricing.updated_at = datetime.utcnow()
+        await pricing.save()
+        results.append(_serialize(pricing))
+    return success_response({"pricing": results, "count": len(results)}, "Bulk update complete")
 
 
 @router.post("/bulk-upsert", summary="Bulk upsert pricing for a device", dependencies=[Depends(get_current_admin)])

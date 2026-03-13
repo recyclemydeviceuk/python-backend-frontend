@@ -3,97 +3,203 @@
 {% block page_title %}Partners{% endblock %}
 
 {% block content %}
-<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage API partner accounts and their access keys</p>
+<p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Manage API keys for external partners</p>
+
+<!-- Revealed Key Modal (shown once after create/regenerate) -->
+{% if new_key %}
+<div id="keyRevealModal" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:1rem;max-width:32rem;width:100%;box-shadow:0 25px 80px rgba(0,0,0,.4);overflow:hidden;">
+    <div style="padding:1.5rem 1.5rem 0;">
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;">
+        <div style="width:2.5rem;height:2.5rem;background:#d1fae5;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg style="width:1.25rem;height:1.25rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <h2 style="font-weight:700;font-size:1rem;color:#111827;">API Key Generated</h2>
+          <p style="font-size:.8125rem;color:#6b7280;margin-top:.125rem;">For partner: <strong style="color:#374151;">{{ new_name }}</strong></p>
+        </div>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:.75rem;padding:.75rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.5rem;">
+        <svg style="width:1rem;height:1rem;color:#d97706;flex-shrink:0;margin-top:.125rem;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <p style="font-size:.75rem;color:#92400e;font-weight:500;">This key will only be shown <strong>once</strong>. Copy it now and send it securely to your partner. It cannot be retrieved again.</p>
+      </div>
+      <div style="background:#111827;border-radius:.75rem;padding:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;">
+        <code id="revealedKey" style="color:#34d399;font-size:.8125rem;font-family:monospace;flex:1;word-break:break-all;line-height:1.6;">{{ new_key }}</code>
+        <button onclick="copyRevealedKey()" id="copyBtn" style="flex-shrink:0;background:#059669;color:#fff;border:none;border-radius:.5rem;padding:.5rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.375rem;white-space:nowrap;">
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <div style="background:#f9fafb;border-radius:.75rem;padding:.75rem;margin-bottom:1rem;">
+        <p style="font-size:.75rem;font-weight:600;color:#374151;margin-bottom:.375rem;">Partner must send in every request:</p>
+        <code style="font-size:.75rem;font-family:monospace;color:#6b7280;">X-Partner-Key: {{ new_key }}</code>
+      </div>
+    </div>
+    <div style="padding:1rem 1.5rem 1.5rem;">
+      <button onclick="document.getElementById('keyRevealModal').style.display='none'" style="width:100%;padding:.75rem;background:#111827;color:#fff;border:none;border-radius:.75rem;font-weight:700;font-size:.875rem;cursor:pointer;">
+        I've copied the key — Done
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Add New Partner -->
 <div class="card" style="margin-bottom:1.5rem;">
-  <div class="card-header"><h3>Add New Partner</h3></div>
+  <div class="card-header">
+    <div style="display:flex;align-items:center;gap:.5rem;">
+      <div style="width:2rem;height:2rem;background:#fef2f2;border-radius:.625rem;display:flex;align-items:center;justify-content:center;">
+        <svg style="width:1rem;height:1rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+      <h3>Add New Partner</h3>
+    </div>
+  </div>
   <form method="post" action="/admin-panel/partners/create">
     <div class="card-body" style="display:flex;align-items:flex-end;gap:.75rem;flex-wrap:wrap;">
       <div style="flex:1;min-width:200px;">
         <label class="field-label">Partner / Company Name <span style="color:#dc2626">*</span></label>
-        <input type="text" name="name" class="field-input" placeholder="e.g. Decision Tech" required />
+        <input type="text" name="name" class="field-input" placeholder="e.g. DecisionTech, PhoneRecycler Ltd" required />
       </div>
-      <button type="submit" class="btn btn-red">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Create Partner
+      <button type="submit" class="btn btn-red" style="display:flex;align-items:center;gap:.5rem;">
+        <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        Generate Key
       </button>
     </div>
   </form>
 </div>
 
-<!-- Revealed Key Banner -->
-{% if new_key %}
-<div class="alert alert-green" style="margin-bottom:1.25rem;">
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-  <div>
-    <p style="font-weight:600;margin-bottom:.25rem;">API Key for <strong>{{ new_key.name }}</strong> — copy it now, it won't be shown again!</p>
-    <code style="background:#fff;border:1px solid #a7f3d0;border-radius:.5rem;padding:.375rem .75rem;font-size:.8125rem;font-family:monospace;display:inline-block;word-break:break-all;">{{ new_key.key }}</code>
-  </div>
-</div>
-{% endif %}
-
 <!-- Partners List -->
 {% if partners %}
-<div style="display:flex;flex-direction:column;gap:1rem;">
+<div style="display:flex;flex-direction:column;gap:.75rem;margin-bottom:1.5rem;">
   {% for p in partners %}
-  <div class="card">
-    <div style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;flex-wrap:wrap;">
-      <!-- Icon + Info -->
-      <div style="width:2.75rem;height:2.75rem;background:#ede9fe;border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <svg style="width:1.25rem;height:1.25rem;color:#7c3aed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+  <div class="card" style="{% if not p.is_active %}opacity:.75;{% endif %}">
+    <div style="display:flex;align-items:flex-start;gap:1rem;padding:1.25rem;flex-wrap:wrap;">
+      <!-- Icon -->
+      <div style="width:2.75rem;height:2.75rem;{% if p.is_active %}background:#d1fae5;{% else %}background:#f3f4f6;{% endif %}border-radius:.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg style="width:1.25rem;height:1.25rem;{% if p.is_active %}color:#059669;{% else %}color:#9ca3af;{% endif %}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       </div>
+      <!-- Info -->
       <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
-          <p style="font-weight:600;color:#111827;">{{ p.name }}</p>
-          <span class="badge {% if p.is_active %}badge-green{% else %}badge-red{% endif %}">{{ 'Active' if p.is_active else 'Inactive' }}</span>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.375rem;">
+          <p style="font-weight:700;color:#111827;font-size:.9375rem;">{{ p.name }}</p>
+          <span style="font-size:.6875rem;font-weight:700;padding:.25rem .5rem;border-radius:9999px;{% if p.is_active %}background:#d1fae5;color:#065f46;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">
+            {{ 'Active' if p.is_active else 'Disabled' }}
+          </span>
         </div>
-        <div style="display:flex;align-items:center;gap:1rem;margin-top:.375rem;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:.375rem;margin-bottom:.5rem;">
+          <svg style="width:.75rem;height:.75rem;color:#9ca3af" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          <code style="font-size:.75rem;font-family:monospace;color:#9ca3af;">{{ p.api_key_preview or '••••••••••••••••' }}</code>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
           <span style="font-size:.75rem;color:#6b7280;display:flex;align-items:center;gap:.25rem;">
-            <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
             {{ p.total_orders or 0 }} orders
           </span>
-          <span style="font-size:.75rem;color:#6b7280;">Created {{ p.created_at.strftime('%d %b %Y') if p.created_at else '' }}</span>
-          <span style="font-size:.75rem;font-family:monospace;color:#9ca3af;background:#f3f4f6;padding:.125rem .5rem;border-radius:.375rem;">
-            {{ p.api_key_preview or '••••••••••••••••' }}
+          {% if p.last_used_at %}
+          <span style="font-size:.75rem;color:#6b7280;display:flex;align-items:center;gap:.25rem;">
+            <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Last used {{ p.last_used_at.strftime('%d %b %Y') if p.last_used_at else 'Never' }}
           </span>
+          {% endif %}
+          <span style="font-size:.75rem;color:#9ca3af;">Added {{ p.created_at.strftime('%d %b %Y') if p.created_at else '' }}</span>
         </div>
       </div>
-
       <!-- Actions -->
-      <div style="display:flex;gap:.5rem;flex-shrink:0;flex-wrap:wrap;">
-        <!-- Toggle -->
+      <div style="display:flex;gap:.5rem;flex-shrink:0;flex-wrap:wrap;align-items:flex-start;">
+        <form method="post" action="/admin-panel/partners/{{ p.id }}/regenerate"
+          onsubmit="return confirm('Regenerate key for {{ p.name }}? The old key will stop working immediately.')">
+          <button type="submit" class="btn btn-sm" style="background:#fffbeb;color:#b45309;border:1px solid #fcd34d;display:flex;align-items:center;gap:.375rem;">
+            <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Regenerate
+          </button>
+        </form>
         <form method="post" action="/admin-panel/partners/{{ p.id }}/toggle">
-          <button type="submit" class="btn btn-sm {% if p.is_active %}btn-gray{% else %}btn-green{% endif %}">
-            {{ 'Disable' if p.is_active else 'Enable' }}
+          <button type="submit" class="btn btn-sm" style="{% if p.is_active %}background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;{% else %}background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;{% endif %}display:flex;align-items:center;gap:.375rem;">
+            {% if p.is_active %}
+            <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            Disable
+            {% else %}
+            <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Enable
+            {% endif %}
           </button>
         </form>
-        <!-- Regenerate Key -->
-        <form method="post" action="/admin-panel/partners/{{ p.id }}/regenerate" onsubmit="return confirm('Regenerate API key for {{ p.name }}? The old key will stop working immediately.')">
-          <button type="submit" class="btn btn-gray btn-sm">
-            <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Regen Key
-          </button>
-        </form>
-        <!-- Delete -->
-        <form method="post" action="/admin-panel/partners/{{ p.id }}/delete" onsubmit="return confirm('Delete partner {{ p.name }}? This cannot be undone.')">
-          <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">
-            <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-            Delete
-          </button>
-        </form>
+        <button onclick="openPartnerDeleteModal('{{ p.id }}','{{ p.name | replace("'", "\\'") }}')"
+          class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;display:flex;align-items:center;gap:.375rem;">
+          <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Delete
+        </button>
       </div>
     </div>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="card">
+<div class="card" style="margin-bottom:1.5rem;">
   <div class="empty-state">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
     <p>No partners yet</p>
-    <small>Create your first API partner above</small>
+    <small>Add your first partner above to generate an API key</small>
   </div>
 </div>
 {% endif %}
+
+<!-- How It Works -->
+<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:1rem;padding:1.25rem;">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;">
+    <svg style="width:1rem;height:1rem;color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+    <h3 style="font-weight:700;color:#1e3a8a;font-size:.875rem;">How Partner Keys Work</h3>
+  </div>
+  <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;">
+    <li style="font-size:.75rem;color:#1d4ed8;display:flex;align-items:flex-start;gap:.5rem;"><span style="font-weight:700;margin-top:.1rem;">•</span> Partner must send <code style="background:#dbeafe;padding:.125rem .375rem;border-radius:.25rem;font-family:monospace;">X-Partner-Key: &lt;key&gt;</code> header with every request to <code style="background:#dbeafe;padding:.125rem .375rem;border-radius:.25rem;font-family:monospace;">/api/gateway/decisiontech</code></li>
+    <li style="font-size:.75rem;color:#1d4ed8;display:flex;align-items:flex-start;gap:.5rem;"><span style="font-weight:700;margin-top:.1rem;">•</span> Keys are hashed with SHA-256 — the plain key is never stored, only shown once on creation</li>
+    <li style="font-size:.75rem;color:#1d4ed8;display:flex;align-items:flex-start;gap:.5rem;"><span style="font-weight:700;margin-top:.1rem;">•</span> Regenerating a key immediately invalidates the old one</li>
+    <li style="font-size:.75rem;color:#1d4ed8;display:flex;align-items:flex-start;gap:.5rem;"><span style="font-weight:700;margin-top:.1rem;">•</span> Disabling a partner blocks all their requests without deleting their record</li>
+    <li style="font-size:.75rem;color:#1d4ed8;display:flex;align-items:flex-start;gap:.5rem;"><span style="font-weight:700;margin-top:.1rem;">•</span> Each order created via partner key will show the partner's name in the order details</li>
+  </ul>
+</div>
+
+<!-- Partner Delete Modal -->
+<div id="partnerDeleteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:#fff;border-radius:1rem;padding:1.5rem;max-width:22rem;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="width:3rem;height:3rem;background:#fee2e2;border-radius:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+      <svg style="width:1.5rem;height:1.5rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    </div>
+    <h3 style="font-weight:700;text-align:center;margin-bottom:.5rem;">Delete Partner?</h3>
+    <p id="partnerDeleteMsg" style="font-size:.875rem;color:#6b7280;text-align:center;margin-bottom:1.25rem;"></p>
+    <div style="display:flex;gap:.75rem;">
+      <button onclick="closePartnerDeleteModal()" style="flex:1;padding:.625rem;border-radius:.75rem;border:1px solid #e5e7eb;font-weight:600;font-size:.875rem;cursor:pointer;background:#fff;">Cancel</button>
+      <form id="partnerDeleteForm" method="post" style="flex:1;">
+        <button type="submit" style="width:100%;padding:.625rem;border-radius:.75rem;background:#dc2626;color:#fff;font-weight:600;font-size:.875rem;border:none;cursor:pointer;">Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function copyRevealedKey() {
+  var key = document.getElementById('revealedKey').textContent.trim();
+  navigator.clipboard.writeText(key).then(function() {
+    var btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.style.background = '#065f46';
+    setTimeout(function() {
+      btn.innerHTML = '<svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy';
+      btn.style.background = '#059669';
+    }, 2000);
+  });
+}
+
+function openPartnerDeleteModal(id, name) {
+  document.getElementById('partnerDeleteForm').action = '/admin-panel/partners/' + id + '/delete';
+  document.getElementById('partnerDeleteMsg').textContent = 'Delete "' + name + '"? Their API key will be immediately invalidated.';
+  document.getElementById('partnerDeleteModal').style.display = 'flex';
+}
+function closePartnerDeleteModal() {
+  document.getElementById('partnerDeleteModal').style.display = 'none';
+}
+document.getElementById('partnerDeleteModal').addEventListener('click', function(e) {
+  if (e.target === this) closePartnerDeleteModal();
+});
+</script>
 {% endblock %}

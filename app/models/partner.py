@@ -1,6 +1,6 @@
 from beanie import Document
 from pydantic import Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 import hashlib
 import secrets
@@ -8,9 +8,12 @@ import secrets
 
 class Partner(Document):
     name: str
-    key_hash: str
-    key_prefix: str
+    key_hash: str = ""
+    key_prefix: str = ""
     is_active: bool = True
+    allowed_ips: List[str] = Field(default_factory=list)
+    rate_limit: int = 100
+    notes: Optional[str] = None
     last_used_at: Optional[datetime] = None
     total_orders: int = 0
     created_by: Optional[str] = None
@@ -32,6 +35,11 @@ class Partner(Document):
             "key_hash": key_hash,
             "key_prefix": key_prefix
         }
+
+    @staticmethod
+    def hash_key(plain_key: str) -> str:
+        """Hash a raw partner API key for storage."""
+        return hashlib.sha256(plain_key.encode()).hexdigest()
 
     @staticmethod
     def verify_key(plain_key: str, key_hash: str) -> bool:

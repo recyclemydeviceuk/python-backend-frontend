@@ -11,8 +11,8 @@ import io
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Request, Form, Depends, UploadFile, File
+from fastapi.responses import RedirectResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
@@ -175,7 +175,7 @@ async def admin_login_verify(request: Request, email: str = Form(...), otp: str 
     record = await OTP.find_one(
         OTP.email == email,
         OTP.code == otp.strip(),
-        OTP.used == False,
+        OTP.is_used == False,
         OTP.expires_at > now
     )
     if not record:
@@ -184,7 +184,7 @@ async def admin_login_verify(request: Request, email: str = Form(...), otp: str 
             "step": "otp", "error": "Invalid or expired OTP. Please try again.", "email": email
         })
 
-    record.used = True
+    record.is_used = True
     await record.save()
 
     admin = await Admin.find_one(Admin.email == email)
@@ -263,6 +263,19 @@ async def admin_dashboard(request: Request):
 
     recent_orders = orders[:6]
 
+    # Normalize api_logs for template
+    api_logs_data = []
+    for l in api_logs:
+        ts = getattr(l, 'timestamp', None) or getattr(l, 'created_at', None)
+        api_logs_data.append({
+            "success": getattr(l, 'success', False),
+            "order_number": getattr(l, 'order_number', None),
+            "error": getattr(l, 'error', None),
+            "source_ip": getattr(l, 'source_ip', ''),
+            "status_code": getattr(l, 'status_code', 500),
+            "created_at": ts,
+        })
+
     return templates.TemplateResponse("admin_dashboard.html", _ctx(
         request, "dashboard", email,
         stats={
@@ -273,6 +286,7 @@ async def admin_dashboard(request: Request):
         },
         recent_orders=recent_orders,
         status_breakdown=status_breakdown,
+        api_logs=api_logs_data,
     ))
 
 
@@ -372,11 +386,11 @@ async def admin_order_detail(request: Request, order_id: str, counter: str = "")
         (i for i, s in enumerate(status_flow) if (s.value or s.name) == order.status), -1
     )
 
-    # Map payout_details fields for template
-    order.payout_bank_name = order.payout_details.account_name if order.payout_details else None
-    order.payout_account_number = order.payout_details.account_number if order.payout_details else None
-    order.payout_sort_code = order.payout_details.sort_code if order.payout_details else None
-    order.price_revision_reason = order.notes
+    # Extract payout_details fields for template
+    payout_bank_name = order.payout_details.account_name if order.payout_details else None
+    payout_account_number = order.payout_details.account_number if order.payout_details else None
+    payout_sort_code = order.payout_details.sort_code if order.payout_details else None
+    price_revision_reason = order.notes
 
     return templates.TemplateResponse("admin_order_detail.html", _ctx(
         request, "orders", email,
@@ -386,6 +400,10 @@ async def admin_order_detail(request: Request, order_id: str, counter: str = "")
         status_flow=status_flow,
         current_status_idx=current_status_idx,
         show_counter_form=(counter == "1"),
+        payout_bank_name=payout_bank_name,
+        payout_account_number=payout_account_number,
+        payout_sort_code=payout_sort_code,
+        price_revision_reason=price_revision_reason,
     ))
 
 
@@ -393,9 +411,11 @@ async def admin_order_detail(request: Request, order_id: str, counter: str = "")
 async def admin_order_status(request: Request, order_id: str, status: str = Form(...)):
     email = _require_admin(request)
     if not email:
-        return _redirect_login()
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from app.models.order import Order
+    from fastapi.responses import JSONResponse
     order = await Order.get(order_id)
     if order:
         order.status = status
@@ -403,6 +423,11 @@ async def admin_order_status(request: Request, order_id: str, status: str = Form
             order.payment_status = 'PAID'
         order.updated_at = datetime.utcnow()
         await order.save()
+
+    # Support AJAX (fetch) calls from bulk update
+    form_data = await request.form() if request.headers.get('content-type', '').startswith('application/x-www-form-urlencoded') else {}
+    if request.headers.get('accept', '') == 'application/json':
+        return JSONResponse({"success": True})
 
     return RedirectResponse(f"/admin-panel/orders/{order_id}", status_code=302)
 
@@ -446,6 +471,45 @@ async def admin_counter_offer_post(request: Request, order_id: str,
         await order.save()
 
     return RedirectResponse(f"/admin-panel/orders/{order_id}", status_code=302)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEVICE IMAGE UPLOAD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/devices/upload-image")
+async def admin_device_upload_image(request: Request, file: UploadFile = File(...)):
+    email = _require_admin(request)
+    if not email:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        from app.config.aws import get_s3_client, S3_BUCKET_NAME, S3_REGION
+        import time
+        import os
+
+        ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
+        allowed = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+        if ext not in allowed:
+            return JSONResponse({"error": "Invalid file type. Use JPG, PNG, WebP or GIF."}, status_code=400)
+
+        contents = await file.read()
+        if len(contents) > 5 * 1024 * 1024:  # 5MB limit
+            return JSONResponse({"error": "File too large. Max 5MB."}, status_code=400)
+
+        key = f"devices/{int(time.time() * 1000)}-{file.filename.replace(' ', '-')}"
+        s3 = get_s3_client()
+        s3.put_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=key,
+            Body=contents,
+            ContentType=file.content_type or "image/jpeg",
+        )
+        url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{key}"
+        return JSONResponse({"url": url})
+    except Exception as e:
+        logger.error(f"S3 upload error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -508,6 +572,8 @@ async def admin_device_add_form(request: Request):
         request, "devices", email,
         device=None, brands=brands, categories=categories,
         networks=networks, storage_options=storage, conditions=conditions,
+        default_pricing=[],
+        pricing_networks=[],
     ))
 
 
@@ -538,6 +604,40 @@ async def admin_device_add_post(request: Request):
     return RedirectResponse("/admin-panel/devices", status_code=302)
 
 
+@router.get("/devices/{device_id}/debug-pricing")
+async def admin_device_debug_pricing(request: Request, device_id: str):
+    email = _require_admin(request)
+    if not email:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    from app.models.pricing import Pricing
+    from app.models.device import Device
+    col = Pricing.get_motor_collection()
+    
+    # Get all devices to see what device IDs exist
+    all_devices = await Device.find().to_list(length=20)
+    device_ids = [{"id": str(d.id), "name": d.name} for d in all_devices]
+    
+    # Get ALL pricing in the system (no filter)
+    all_pricing = await col.find({}).to_list(length=50)
+    for doc in all_pricing:
+        doc["_id"] = str(doc["_id"])
+    
+    # Get pricing for this specific device
+    device_pricing = await col.find(
+        {"$or": [{"deviceId": device_id}, {"device_id": device_id}]}
+    ).to_list(length=50)
+    for doc in device_pricing:
+        doc["_id"] = str(doc["_id"])
+    
+    return JSONResponse({
+        "target_device_id": device_id,
+        "all_devices": device_ids,
+        "total_pricing_records": len(all_pricing),
+        "pricing_for_device": device_pricing,
+        "first_5_pricing": all_pricing[:5]
+    })
+
+
 @router.get("/devices/{device_id}/edit")
 async def admin_device_edit_form(request: Request, device_id: str):
     email = _require_admin(request)
@@ -551,18 +651,26 @@ async def admin_device_edit_form(request: Request, device_id: str):
     if not device:
         return RedirectResponse("/admin-panel/devices", status_code=302)
 
-    pricing_rows = await Pricing.find(Pricing.device_id == device_id).to_list()
+    pricing_rows = await Pricing.find(
+        {"$or": [{"deviceId": device_id}, {"device_id": device_id}]}
+    ).to_list()
     storage, conditions, networks, brands, categories, _, _ = await _load_utilities()
 
-    # Attach pricing to device for template
-    device.default_pricing = pricing_rows
+    logger.info(f"[PRICING DEBUG] device_id={device_id} rows={len(pricing_rows)}")
+    for p in pricing_rows:
+        logger.info(f"  row: device_id={p.device_id!r} network={p.network!r} storage={p.storage!r} new={p.grade_new} good={p.grade_good} broken={p.grade_broken}")
+    logger.info(f"[UTILITIES DEBUG] networks={[(n.name, n.value) for n in networks]} storage={[(s.name, s.value) for s in storage]}")
+
+    # Extract pricing data for template
+    default_pricing = pricing_rows
     networks_used = list(set(p.network for p in pricing_rows))
-    device.pricing_networks = networks_used
 
     return templates.TemplateResponse("admin_device_form.html", _ctx(
         request, "devices", email,
         device=device, brands=brands, categories=categories,
         networks=networks, storage_options=storage, conditions=conditions,
+        default_pricing=default_pricing,
+        pricing_networks=networks_used,
     ))
 
 
@@ -618,7 +726,7 @@ async def admin_device_delete(request: Request, device_id: str):
     from app.models.pricing import Pricing
     device = await Device.get(device_id)
     if device:
-        await Pricing.find(Pricing.device_id == device_id).delete()
+        await Pricing.find({"$or": [{"deviceId": device_id}, {"device_id": device_id}]}).delete()
         await device.delete()
 
     return RedirectResponse("/admin-panel/devices", status_code=302)
@@ -626,32 +734,50 @@ async def admin_device_delete(request: Request, device_id: str):
 
 async def _save_device_pricing(device_id: str, device_name: str, form):
     from app.models.pricing import Pricing
-    # Delete existing
-    await Pricing.find(Pricing.device_id == device_id).delete()
+    # Delete existing — use raw query to match both deviceId (camelCase) and device_id fields
+    await Pricing.find({"$or": [{"deviceId": device_id}, {"device_id": device_id}]}).delete()
 
     # Parse fields: price_{network}_{storage}_{gradeKey}
-    price_map: dict = {}
-    networks_selected = form.getlist("networks") if hasattr(form, "getlist") else []
+    # Field names embed network so we build: price_map[net][stor][gradeKey] = value
+    price_map: dict = {}  # {net: {stor: {gradeKey: value}}}
 
-    for key in form.keys():
-        if key.startswith("price_"):
-            parts = key[6:].split("_", 2)
-            if len(parts) == 3:
-                net, stor, grade_field = parts
-                if net not in price_map:
-                    price_map[net] = {}
-                if stor not in price_map[net]:
-                    price_map[net][stor] = {}
-                try:
-                    price_map[net][stor][grade_field] = float(form[key] or 0)
-                except ValueError:
-                    price_map[net][stor][grade_field] = 0.0
+    form_keys = list(form.keys())
+    for key in form_keys:
+        if not key.startswith("price_"):
+            continue
+        remainder = key[6:]  # strip "price_"
+        # Find the grade key suffix (gradeNew, gradeGood, gradeBroken)
+        grade_field = None
+        for gk in ("gradeNew", "gradeGood", "gradeBroken"):
+            if remainder.endswith("_" + gk):
+                grade_field = gk
+                net_stor = remainder[: -(len(gk) + 1)]  # strip "_gradeXxx"
+                break
+        if grade_field is None:
+            continue
+        # net_stor is like "Unlocked_128GB" or "EE_512GB"
+        # Split on first "_" — but network names may contain no underscore, storage is last token
+        # Storage options look like "64GB", "128GB", "512GB", "1TB" — no underscore
+        # So split from the right: last token is storage, rest is network
+        parts = net_stor.rsplit("_", 1)
+        if len(parts) != 2:
+            continue
+        net, stor = parts
+        if net not in price_map:
+            price_map[net] = {}
+        if stor not in price_map[net]:
+            price_map[net][stor] = {}
+        try:
+            price_map[net][stor][grade_field] = float(form[key] or 0)
+        except (ValueError, TypeError):
+            price_map[net][stor][grade_field] = 0.0
 
-    for net in (networks_selected or ["Unlocked"]):
-        for stor, grades in price_map.items():
+    # Save one Pricing row per (network, storage) combination
+    for net, stor_map in price_map.items():
+        for stor, grades in stor_map.items():
             p = Pricing(
                 device_id=device_id, device_name=device_name,
-                network=net, storage=stor,
+                network=net.lower(), storage=stor.lower(),
                 grade_new=grades.get("gradeNew", 0),
                 grade_good=grades.get("gradeGood", 0),
                 grade_broken=grades.get("gradeBroken", 0),
@@ -717,12 +843,12 @@ async def admin_pricing_save(request: Request, device_id: str):
     networks_selected = form.getlist("networks")
 
     # Delete existing pricing for this device
-    await Pricing.find(Pricing.device_id == device_id).delete()
+    await Pricing.find({"$or": [{"deviceId": device_id}, {"device_id": device_id}]}).delete()
 
     # Parse fields: {storage}__{gradeKey}  e.g. 128GB__grade_new
     price_map: dict = {}
     for key in form.keys():
-        if "__" in key and not key == "networks":
+        if "__" in key and key != "networks":
             parts = key.split("__", 1)
             if len(parts) == 2:
                 stor, grade_field = parts
@@ -730,7 +856,7 @@ async def admin_pricing_save(request: Request, device_id: str):
                     price_map[stor] = {}
                 try:
                     price_map[stor][grade_field] = float(form[key] or 0)
-                except ValueError:
+                except (ValueError, TypeError):
                     price_map[stor][grade_field] = 0.0
 
     for net in (networks_selected or ["Unlocked"]):
@@ -903,16 +1029,17 @@ async def admin_partners(request: Request, new_key: str = "", new_name: str = ""
         partners_data.append({
             "id": str(p.id), "name": p.name,
             "is_active": p.is_active,
-            "total_orders": p.total_orders,
-            "created_at": p.created_at,
-            "api_key_preview": p.key_prefix,
+            "total_orders": getattr(p, 'total_orders', 0),
+            "created_at": getattr(p, 'created_at', None),
+            "last_used_at": getattr(p, 'last_used_at', None),
+            "api_key_preview": getattr(p, 'key_prefix', '••••••'),
         })
-
-    new_key_obj = {"key": new_key, "name": new_name} if new_key else None
 
     return templates.TemplateResponse("admin_partners.html", _ctx(
         request, "partners", email,
-        partners=partners_data, new_key=new_key_obj,
+        partners=partners_data,
+        new_key=new_key if new_key else None,
+        new_name=new_name if new_name else None,
     ))
 
 
@@ -1002,29 +1129,37 @@ async def admin_api_gateway(request: Request):
 
     from app.models.partner import Partner
 
-    logs_raw = await _safe_api_logs(100)
-    partners = await Partner.find().to_list()
-    partner_map = {p.name: p.name for p in partners}
+    try:
+        logs_raw = await _safe_api_logs(100)
+        partners = await Partner.find().to_list()
+        partner_map = {p.name: p.name for p in partners}
 
-    total = len(logs_raw)
-    successful = sum(1 for l in logs_raw if l.success)
-    failed = total - successful
-    avg_response = int(sum(l.response_time or 0 for l in logs_raw) / total) if total else 0
+        total = len(logs_raw)
+        successful = sum(1 for l in logs_raw if getattr(l, 'success', False))
+        failed = total - successful
+        avg_response = int(sum(getattr(l, 'response_time', 0) or 0 for l in logs_raw) / total) if total else 0
 
-    # Attach partner_name from partner lookup if not stored
-    logs = []
-    for l in logs_raw:
-        logs.append({
-            "id": str(l.id),
-            "success": l.success,
-            "order_number": l.order_number,
-            "error": l.error,
-            "source_ip": l.source_ip,
-            "response_time": l.response_time,
-            "status_code": l.status_code,
-            "created_at": l.created_at,
-            "partner_name": None,
-        })
+        # Attach partner_name from partner lookup if not stored
+        logs = []
+        for l in logs_raw:
+            ts = getattr(l, 'timestamp', None) or getattr(l, 'created_at', None) or datetime.utcnow()
+            logs.append({
+                "id": str(l.id),
+                "success": getattr(l, 'success', False),
+                "order_number": getattr(l, 'order_number', None),
+                "error": getattr(l, 'error', None),
+                "source_ip": getattr(l, 'source_ip', ''),
+                "response_time": getattr(l, 'response_time', 0),
+                "status_code": getattr(l, 'status_code', 500),
+                "timestamp": ts,
+                "created_at": ts,
+                "payload": getattr(l, 'payload', None),
+                "partner_name": None,
+            })
+    except Exception as e:
+        logger.error(f"Error fetching API logs: {str(e)}")
+        logs = []
+        total = successful = failed = avg_response = 0
 
     return templates.TemplateResponse("admin_api_gateway.html", _ctx(
         request, "api-gateway", email,

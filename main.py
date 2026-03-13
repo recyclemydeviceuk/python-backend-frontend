@@ -12,8 +12,6 @@ from typing import Optional
 from app.config.settings import settings
 from app.config.database import connect_db, close_db
 from app.routers import api_router
-from app.middleware.request_logger import RequestLoggerMiddleware
-from app.middleware.rate_limiter import RateLimiterMiddleware
 from app.utils.logger import logger
 
 
@@ -62,9 +60,6 @@ app = FastAPI(
 )
 
 # ── Custom Middleware ──────────────────────────────────────────────────────────
-app.add_middleware(RateLimiterMiddleware)
-app.add_middleware(RequestLoggerMiddleware)
-
 # ── CORS ───────────────────────────────────────────────────────────────────────
 # Add CORS last so it runs FIRST (Starlette runs middleware in reverse order)
 app.add_middleware(

@@ -32,7 +32,7 @@ async def get_dashboard_stats() -> dict:
     active_devices = await Device.find(Device.is_active == True).count()
 
     unread_contacts = await ContactSubmission.find(
-        ContactSubmission.is_read == False
+        ContactSubmission.status == "new"
     ).count()
 
     # Orders by status

@@ -17,24 +17,32 @@ async def get_all_devices(
     brand: Optional[str] = None,
     category: Optional[str] = None,
     is_active: Optional[bool] = None,
+    isActive: Optional[bool] = None,
     search: Optional[str] = None,
-    limit: Optional[int] = Query(None, le=200),
+    limit: Optional[int] = Query(None, le=500),
+    page: Optional[int] = Query(None, ge=1),
 ):
-    query = {}
+    active_filter = is_active if is_active is not None else isActive
     filters = []
     if brand:
         filters.append(Device.brand == brand)
     if category:
         filters.append(Device.category == category)
-    if is_active is not None:
-        filters.append(Device.is_active == is_active)
+    if active_filter is not None:
+        filters.append(Device.is_active == active_filter)
 
     q = Device.find(*filters).sort(-Device.created_at)
+    total = await q.count()
     if search:
         import re
         pattern = re.compile(search, re.IGNORECASE)
         devices = await q.to_list()
-        devices = [d for d in devices if pattern.search(d.name) or pattern.search(d.full_name) or pattern.search(d.brand)]
+        devices = [d for d in devices if pattern.search(d.name) or pattern.search(d.full_name or '') or pattern.search(d.brand)]
+    elif page and limit:
+        skip = (page - 1) * limit
+        devices = await q.skip(skip).limit(limit).to_list()
+        from app.utils.response import paginated_response
+        return paginated_response([_serialize(d) for d in devices], page, limit, total)
     else:
         devices = await (q.limit(limit) if limit else q).to_list()
 
@@ -46,8 +54,21 @@ async def get_device(device_id: str):
     device = await Device.get(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    pricing = await Pricing.find(Pricing.device_id == device_id).to_list()
-    return success_response({"device": _serialize(device), "pricing": [_serialize_pricing(p) for p in pricing]})
+    # Try both string and ObjectId forms since pricing may have been saved either way
+    from bson import ObjectId as BsonObjectId
+    col = Pricing.get_motor_collection()
+    try:
+        oid = BsonObjectId(device_id)
+        raw = await col.find({"$or": [{"deviceId": device_id}, {"deviceId": oid}, {"device_id": device_id}]}).to_list(length=None)
+    except Exception:
+        raw = await col.find({"$or": [{"deviceId": device_id}, {"device_id": device_id}]}).to_list(length=None)
+    pricing_objs = []
+    for doc in raw:
+        try:
+            pricing_objs.append(Pricing.model_validate(doc))
+        except Exception:
+            pass
+    return success_response({"device": _serialize(device), "pricing": [_serialize_pricing(p) for p in pricing_objs]})
 
 
 @router.post("", summary="Create device", dependencies=[Depends(get_current_admin)])
@@ -55,7 +76,7 @@ async def create_device(body: CreateDeviceSchema):
     device = Device(
         brand=body.brand, name=body.name, full_name=body.full_name,
         category=body.category, image_url=body.image_url, is_active=body.is_active,
-        specifications=body.specifications.dict() if body.specifications else None,
+        specifications=body.specifications,
     )
     await device.insert()
 
@@ -76,9 +97,20 @@ async def update_device(device_id: str, body: UpdateDeviceSchema):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    update_data = body.dict(exclude_unset=True, exclude={"default_pricing"})
-    for k, v in update_data.items():
-        setattr(device, k, v)
+    if body.brand is not None:
+        device.brand = body.brand
+    if body.name is not None:
+        device.name = body.name
+    if body.full_name is not None:
+        device.full_name = body.full_name
+    if body.category is not None:
+        device.category = body.category
+    if body.image_url is not None:
+        device.image_url = body.image_url
+    if body.is_active is not None:
+        device.is_active = body.is_active
+    if body.specifications is not None:
+        device.specifications = body.specifications
     device.updated_at = datetime.utcnow()
     await device.save()
 
@@ -126,7 +158,14 @@ async def import_devices(file: UploadFile = File(...)):
 
 
 def _serialize(d: Device) -> dict:
-    full_name = d.full_name or d.name
+    raw_full = d.full_name or d.name
+    brand = (d.brand or "").strip()
+    # Strip duplicate brand prefix (e.g. "Samsung Samsung Galaxy" → "Samsung Galaxy")
+    if brand and raw_full.startswith(brand + " " + brand + " "):
+        raw_full = raw_full[len(brand) + 1:]
+    elif brand and raw_full.startswith(brand + " ") and raw_full.count(brand) > 1:
+        raw_full = raw_full[len(brand) + 1:]
+    full_name = raw_full
     return {
         "id": str(d.id), "_id": str(d.id),
         "brand": d.brand, "name": d.name,

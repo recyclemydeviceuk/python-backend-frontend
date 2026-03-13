@@ -1,5 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
+
+
+def _normalize(data: dict) -> dict:
+    """Map camelCase keys to snake_case for all utility schemas."""
+    if "isActive" in data and "is_active" not in data:
+        data["is_active"] = data.pop("isActive")
+    if "sortOrder" in data and "sort_order" not in data:
+        data["sort_order"] = data.pop("sortOrder")
+    return data
 
 
 class CreateNetworkSchema(BaseModel):
@@ -10,10 +19,12 @@ class CreateNetworkSchema(BaseModel):
 
 
 class UpdateNetworkSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     value: Optional[str] = None
-    is_active: Optional[bool] = None
-    sort_order: Optional[int] = None
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class CreateStorageOptionSchema(BaseModel):
@@ -24,10 +35,12 @@ class CreateStorageOptionSchema(BaseModel):
 
 
 class UpdateStorageOptionSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     value: Optional[str] = None
-    is_active: Optional[bool] = None
-    sort_order: Optional[int] = None
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class CreateDeviceConditionSchema(BaseModel):
@@ -39,11 +52,13 @@ class CreateDeviceConditionSchema(BaseModel):
 
 
 class UpdateDeviceConditionSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     value: Optional[str] = None
     description: Optional[str] = None
-    is_active: Optional[bool] = None
-    sort_order: Optional[int] = None
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class CreateBrandSchema(BaseModel):
@@ -54,10 +69,12 @@ class CreateBrandSchema(BaseModel):
 
 
 class UpdateBrandSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     logo: Optional[str] = None
-    sort_order: Optional[int] = None
-    is_active: Optional[bool] = None
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class CreateCategorySchema(BaseModel):
@@ -68,10 +85,12 @@ class CreateCategorySchema(BaseModel):
 
 
 class UpdateCategorySchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     description: Optional[str] = None
-    sort_order: Optional[int] = None
-    is_active: Optional[bool] = None
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class CreateOrderStatusSchema(BaseModel):
@@ -83,11 +102,13 @@ class CreateOrderStatusSchema(BaseModel):
 
 
 class UpdateOrderStatusSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     value: Optional[str] = None
     color: Optional[str] = None
-    sort_order: Optional[int] = None
-    is_active: Optional[bool] = None
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class CreatePaymentStatusSchema(BaseModel):
@@ -99,11 +120,13 @@ class CreatePaymentStatusSchema(BaseModel):
 
 
 class UpdatePaymentStatusSchema(BaseModel):
+    model_config = {"populate_by_name": True}
     name: Optional[str] = None
     value: Optional[str] = None
     color: Optional[str] = None
-    sort_order: Optional[int] = None
-    is_active: Optional[bool] = None
+    sort_order: Optional[int] = Field(None, alias="sortOrder")
+    is_active: Optional[bool] = Field(None, alias="isActive")
+    def __init__(self, **data): super().__init__(**_normalize(data))
 
 
 class ReorderItemSchema(BaseModel):

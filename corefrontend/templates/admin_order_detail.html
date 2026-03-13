@@ -133,9 +133,9 @@
           <span style="font-size:.75rem;color:#6b7280;">Status</span>
           <span class="badge {% if order.payment_status == 'PAID' %}badge-green{% elif order.payment_status == 'PENDING' %}badge-yellow{% else %}badge-gray{% endif %}">{{ order.payment_status or 'PENDING' }}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Bank</span><span style="font-size:.8125rem;font-weight:500;">{{ order.payout_bank_name or '—' }}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Account</span><span style="font-size:.8125rem;font-family:monospace;">{{ order.payout_account_number or '—' }}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Sort Code</span><span style="font-size:.8125rem;font-family:monospace;">{{ order.payout_sort_code or '—' }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Bank</span><span style="font-size:.8125rem;font-weight:500;">{{ payout_bank_name or '—' }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Account</span><span style="font-size:.8125rem;font-family:monospace;">{{ payout_account_number or '—' }}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Sort Code</span><span style="font-size:.8125rem;font-family:monospace;">{{ payout_sort_code or '—' }}</span></div>
         {% if order.transaction_id %}
         <div style="display:flex;justify-content:space-between;"><span style="font-size:.75rem;color:#6b7280;">Txn ID</span><span style="font-size:.6875rem;font-family:monospace;color:#6b7280;">{{ order.transaction_id }}</span></div>
         {% endif %}
@@ -182,7 +182,7 @@
 </div>
 
 <!-- Price Revision Reason -->
-{% if order.price_revision_reason %}
+{% if price_revision_reason %}
 <div class="card" style="margin-top:1.25rem;">
   <div class="card-header">
     <div style="display:flex;align-items:center;gap:.5rem;">
@@ -192,7 +192,7 @@
       <h3>Price Revision Reason</h3>
     </div>
   </div>
-  <div class="card-body"><p style="font-size:.875rem;color:#374151;">{{ order.price_revision_reason }}</p></div>
+  <div class="card-body"><p style="font-size:.875rem;color:#374151;">{{ price_revision_reason }}</p></div>
 </div>
 {% endif %}
 

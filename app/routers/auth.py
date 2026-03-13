@@ -55,7 +55,7 @@ async def verify_otp_endpoint(body: VerifyOTPSchema):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "admin": {"id": str(admin.id), "email": admin.email, "name": admin.name, "role": admin.role},
+        "admin": {"id": str(admin.id), "email": admin.email, "name": getattr(admin, "name", None) or admin.username, "role": admin.role},
     }
 
 
@@ -63,4 +63,4 @@ async def verify_otp_endpoint(body: VerifyOTPSchema):
 async def get_me(admin: Admin = None):
     from app.middleware.auth import get_current_admin
     from fastapi import Depends
-    return {"success": True, "data": {"admin": {"id": str(admin.id), "email": admin.email, "name": admin.name, "role": admin.role}}}
+    return {"success": True, "data": {"admin": {"id": str(admin.id), "email": admin.email, "name": getattr(admin, "name", None) or admin.username, "role": admin.role}}}

@@ -6,7 +6,7 @@
 <p style="font-size:.875rem;color:#6b7280;margin-bottom:1.25rem;font-weight:500;">Overview of your operations</p>
 
 <!-- Stat Cards -->
-<div class="stat-grid">
+<div class="stat-grid" style="margin-bottom:1.5rem;">
   <div class="stat-card">
     <div class="stat-icon" style="background:#dbeafe;">
       <svg style="color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
@@ -17,7 +17,7 @@
   </div>
   <div class="stat-card">
     <div class="stat-icon" style="background:#d1fae5;">
-      <svg style="color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      <svg style="color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
     </div>
     <div class="stat-value">{{ stats.paid_orders }}</div>
     <div class="stat-label">Paid Out</div>
@@ -29,7 +29,7 @@
     </div>
     <div class="stat-value">{{ stats.api_orders }}</div>
     <div class="stat-label">API Orders</div>
-    <div class="stat-sub">{{ stats.api_errors }} errors</div>
+    <div class="stat-sub" style="{% if stats.api_errors > 0 %}color:#dc2626;{% endif %}">{{ stats.api_errors }} errors</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon" style="background:#ffedd5;">
@@ -41,68 +41,122 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 380px;gap:1.5rem;">
+<div style="display:grid;grid-template-columns:1fr 360px;gap:1.5rem;align-items:start;">
 
-  <!-- Recent Orders -->
-  <div class="card">
-    <div class="card-header">
-      <h2>Recent Orders</h2>
-      <a href="/admin-panel/orders" style="font-size:.75rem;font-weight:600;color:#dc2626;display:flex;align-items:center;gap:.25rem;">
-        View all
-        <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-      </a>
-    </div>
-    {% if recent_orders %}
-    <div>
-      {% for o in recent_orders %}
-      <a href="/admin-panel/orders/{{ o.id }}" style="display:flex;align-items:center;gap:1rem;padding:.875rem 1.25rem;border-bottom:1px solid #f3f4f6;transition:background .15s;"
-        onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem;flex-wrap:wrap;">
-            <span style="font-size:.875rem;font-weight:600;color:#111827;">#{{ o.order_number }}</span>
-            <span class="badge {% if o.status == 'PENDING' %}badge-yellow{% elif o.status in ['COMPLETED','PAID'] %}badge-green{% elif o.status == 'CANCELLED' %}badge-red{% else %}badge-blue{% endif %}">{{ o.status }}</span>
-            {% if o.source == 'API' %}<span class="badge badge-purple">API</span>{% endif %}
+  <!-- Left: Recent Orders + API Health -->
+  <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+    <!-- Recent Orders -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Recent Orders</h2>
+        <a href="/admin-panel/orders" style="font-size:.75rem;font-weight:600;color:#dc2626;display:flex;align-items:center;gap:.25rem;">
+          View all
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+      {% if recent_orders %}
+      <div>
+        {% for o in recent_orders %}
+        <a href="/admin-panel/orders/{{ o.id }}" style="display:flex;align-items:center;gap:1rem;padding:.875rem 1.25rem;border-bottom:1px solid #f3f4f6;transition:background .15s;"
+          onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
+          <div style="width:2rem;height:2rem;border-radius:.625rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+            {% if o.status == 'PENDING' %}background:#fef9c3;{% elif o.status in ['COMPLETED','PAID'] %}background:#d1fae5;{% elif o.status == 'CANCELLED' %}background:#fee2e2;{% else %}background:#dbeafe;{% endif %}">
+            <svg style="width:.875rem;height:.875rem;{% if o.status == 'PENDING' %}color:#a16207;{% elif o.status in ['COMPLETED','PAID'] %}color:#059669;{% elif o.status == 'CANCELLED' %}color:#dc2626;{% else %}color:#2563eb;{% endif %}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
           </div>
-          <p style="font-size:.75rem;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ o.customer_name }} · {{ o.device_name }}</p>
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <p style="font-size:.875rem;font-weight:700;color:#111827;">£{{ o.final_price or o.offered_price }}</p>
-          <p style="font-size:.75rem;color:#6b7280;">{{ o.created_at.strftime('%d/%m/%Y') if o.created_at else '' }}</p>
-        </div>
-        <svg style="width:1rem;height:1rem;color:#9ca3af;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-      </a>
-      {% endfor %}
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.125rem;flex-wrap:wrap;">
+              <span style="font-size:.875rem;font-weight:700;color:#111827;">#{{ o.order_number }}</span>
+              <span class="badge {% if o.status == 'PENDING' %}badge-yellow{% elif o.status in ['COMPLETED','PAID'] %}badge-green{% elif o.status == 'CANCELLED' %}badge-red{% else %}badge-blue{% endif %}" style="font-size:.625rem;">{{ o.status }}</span>
+              {% if o.source == 'API' %}<span class="badge badge-purple" style="font-size:.625rem;">API</span>{% endif %}
+            </div>
+            <p style="font-size:.75rem;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ o.customer_name }} · {{ o.device_name }}</p>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <p style="font-size:.875rem;font-weight:700;color:#111827;">£{{ o.final_price or o.offered_price }}</p>
+            <p style="font-size:.6875rem;color:#9ca3af;">{{ o.created_at.strftime('%d/%m/%Y') if o.created_at else '' }}</p>
+          </div>
+          <svg style="width:.875rem;height:.875rem;color:#d1d5db;flex-shrink:0;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+        {% endfor %}
+      </div>
+      <div style="padding:.75rem 1.25rem;border-top:1px solid #f3f4f6;">
+        <a href="/admin-panel/orders" style="font-size:.75rem;color:#dc2626;font-weight:600;display:flex;align-items:center;gap:.375rem;">
+          See all {{ stats.total_orders }} orders
+          <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+        <p>No orders yet</p>
+        <small>Orders will appear here once they are placed</small>
+      </div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="empty-state">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
-      <p>No orders yet</p>
+
+    <!-- API Health (last 5 requests) -->
+    {% if api_logs %}
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <div style="width:.5rem;height:.5rem;border-radius:50%;background:{% if stats.api_errors > 0 %}#dc2626{% else %}#059669{% endif %};"></div>
+          <h3>API Health</h3>
+          <span style="font-size:.75rem;color:#6b7280;">Last 5 requests</span>
+        </div>
+        <a href="/admin-panel/api-gateway" style="font-size:.75rem;font-weight:600;color:#7c3aed;display:flex;align-items:center;gap:.25rem;">
+          Full logs
+          <svg style="width:.875rem;height:.875rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+      <div>
+        {% for log in api_logs[:5] %}
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1.25rem;border-bottom:1px solid #f3f4f6;">
+          {% if log.success %}
+          <div style="width:1.5rem;height:1.5rem;border-radius:50%;background:#d1fae5;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg style="width:.75rem;height:.75rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          {% else %}
+          <div style="width:1.5rem;height:1.5rem;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg style="width:.75rem;height:.75rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </div>
+          {% endif %}
+          <div style="flex:1;min-width:0;">
+            <p style="font-size:.8125rem;font-weight:500;color:#111827;">
+              {% if log.success %}Order #{{ log.order_number or '—' }}{% else %}{{ log.error or 'Request failed' }}{% endif %}
+            </p>
+            <p style="font-size:.6875rem;color:#9ca3af;">{{ log.source_ip or '—' }} · {{ log.created_at.strftime('%d/%m %H:%M') if log.created_at else '' }}</p>
+          </div>
+          <span style="font-size:.6875rem;font-weight:700;padding:.125rem .375rem;border-radius:.375rem;flex-shrink:0;{% if log.success %}background:#d1fae5;color:#065f46;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">{{ log.status_code }}</span>
+        </div>
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
+
   </div>
 
   <!-- Right Column -->
-  <div style="display:flex;flex-direction:column;gap:1.5rem;">
+  <div style="display:flex;flex-direction:column;gap:1.25rem;">
 
     <!-- Status Breakdown -->
     <div class="card">
-      <div class="card-header"><h3>Status Breakdown</h3></div>
+      <div class="card-header">
+        <h3>Status Breakdown</h3>
+        <span style="font-size:.75rem;color:#6b7280;">{{ stats.total_orders }} orders</span>
+      </div>
       <div style="padding:.875rem 1.25rem;display:flex;flex-direction:column;gap:.625rem;">
         {% for status, count in status_breakdown %}
         {% set bar_pct = ((count / stats.total_orders) * 100) | int if stats.total_orders > 0 else 0 %}
-        {% if status == 'PENDING' %}{% set sc = 'badge-yellow' %}
-        {% elif status in ['COMPLETED','PAID'] %}{% set sc = 'badge-green' %}
-        {% elif status == 'CANCELLED' %}{% set sc = 'badge-red' %}
-        {% else %}{% set sc = 'badge-blue' %}{% endif %}
         <div style="display:flex;align-items:center;gap:.75rem;">
-          <span class="badge {{ sc }}" style="flex-shrink:0;min-width:5rem;justify-content:center;">{{ status }}</span>
-          <div style="flex:1;background:#e5e7eb;border-radius:9999px;height:.375rem;">
-            <div style="background:#dc2626;height:.375rem;border-radius:9999px;width:{{ bar_pct }}%;"></div>
+          <span style="font-size:.6875rem;font-weight:600;min-width:5.5rem;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ status }}</span>
+          <div style="flex:1;background:#e5e7eb;border-radius:9999px;height:.3125rem;">
+            <div style="background:#dc2626;height:.3125rem;border-radius:9999px;width:{{ bar_pct }}%;transition:width .3s;"></div>
           </div>
-          <span style="font-size:.75rem;font-weight:600;color:#6b7280;width:1.5rem;text-align:right;">{{ count }}</span>
+          <span style="font-size:.75rem;font-weight:700;color:#374151;min-width:1.5rem;text-align:right;">{{ count }}</span>
         </div>
         {% else %}
-        <p style="font-size:.875rem;color:#9ca3af;text-align:center;padding:.5rem 0;">No data</p>
+        <p style="font-size:.875rem;color:#9ca3af;text-align:center;padding:.5rem 0;">No data yet</p>
         {% endfor %}
       </div>
     </div>
@@ -110,37 +164,45 @@
     <!-- Quick Actions -->
     <div class="card">
       <div class="card-header"><h3>Quick Actions</h3></div>
-      <div style="padding:.75rem;">
-        <a href="/admin-panel/orders" style="display:flex;align-items:center;gap:.75rem;padding:.625rem .75rem;border-radius:.75rem;transition:background .15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
-          <div style="width:1.75rem;height:1.75rem;background:#dbeafe;border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg style="width:1rem;height:1rem;color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+      <div style="padding:.5rem;">
+        {% for link, icon_bg, icon_color, label, path in [
+          ('orders','#dbeafe','#2563eb','Manage Orders','/admin-panel/orders'),
+          ('devices','#ffedd5','#ea580c','Manage Devices','/admin-panel/devices'),
+          ('pricing','#d1fae5','#059669','Update Pricing','/admin-panel/pricing'),
+          ('utilities','#f3e8ff','#7c3aed','Utilities & Lookups','/admin-panel/utilities'),
+          ('partners','#ede9fe','#7c3aed','API Partners','/admin-panel/partners'),
+        ] %}
+        <a href="{{ path }}" style="display:flex;align-items:center;gap:.75rem;padding:.625rem .75rem;border-radius:.75rem;transition:background .15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
+          <div style="width:1.75rem;height:1.75rem;background:{{ icon_bg }};border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            {% if link == 'orders' %}<svg style="width:.875rem;height:.875rem;color:{{ icon_color }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            {% elif link == 'devices' %}<svg style="width:.875rem;height:.875rem;color:{{ icon_color }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            {% elif link == 'pricing' %}<svg style="width:.875rem;height:.875rem;color:{{ icon_color }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            {% elif link == 'utilities' %}<svg style="width:.875rem;height:.875rem;color:{{ icon_color }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07"/><path d="M19.07 19.07A10 10 0 0 0 4.93 4.93"/></svg>
+            {% elif link == 'partners' %}<svg style="width:.875rem;height:.875rem;color:{{ icon_color }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            {% endif %}
           </div>
-          <span style="font-size:.875rem;font-weight:500;color:#374151;flex:1;">Manage Orders</span>
-          <svg style="width:.875rem;height:.875rem;color:#9ca3af;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span style="font-size:.875rem;font-weight:500;color:#374151;flex:1;">{{ label }}</span>
+          <svg style="width:.875rem;height:.875rem;color:#d1d5db;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
-        <a href="/admin-panel/devices" style="display:flex;align-items:center;gap:.75rem;padding:.625rem .75rem;border-radius:.75rem;transition:background .15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
-          <div style="width:1.75rem;height:1.75rem;background:#ffedd5;border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg style="width:1rem;height:1rem;color:#ea580c" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-          </div>
-          <span style="font-size:.875rem;font-weight:500;color:#374151;flex:1;">Manage Devices</span>
-          <svg style="width:.875rem;height:.875rem;color:#9ca3af;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </a>
-        <a href="/admin-panel/pricing" style="display:flex;align-items:center;gap:.75rem;padding:.625rem .75rem;border-radius:.75rem;transition:background .15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
-          <div style="width:1.75rem;height:1.75rem;background:#d1fae5;border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg style="width:1rem;height:1rem;color:#059669" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          </div>
-          <span style="font-size:.875rem;font-weight:500;color:#374151;flex:1;">Update Pricing</span>
-          <svg style="width:.875rem;height:.875rem;color:#9ca3af;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </a>
-        <a href="/admin-panel/partners" style="display:flex;align-items:center;gap:.75rem;padding:.625rem .75rem;border-radius:.75rem;transition:background .15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
-          <div style="width:1.75rem;height:1.75rem;background:#ede9fe;border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg style="width:1rem;height:1rem;color:#7c3aed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          </div>
-          <span style="font-size:.875rem;font-weight:500;color:#374151;flex:1;">API Partners</span>
-          <svg style="width:.875rem;height:.875rem;color:#9ca3af;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </a>
+        {% endfor %}
       </div>
     </div>
+
+    <!-- Pending Orders Alert -->
+    {% set pending_count = status_breakdown | selectattr('0', 'equalto', 'PENDING') | list %}
+    {% if pending_count and pending_count[0][1] > 0 %}
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:1rem;padding:1rem;">
+      <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.375rem;">
+        <svg style="width:1rem;height:1rem;color:#d97706" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <p style="font-size:.8125rem;font-weight:700;color:#92400e;">{{ pending_count[0][1] }} Pending Order{{ 's' if pending_count[0][1] > 1 else '' }}</p>
+      </div>
+      <p style="font-size:.75rem;color:#b45309;margin-bottom:.625rem;">Require your attention</p>
+      <a href="/admin-panel/orders?status=PENDING" style="display:inline-flex;align-items:center;gap:.375rem;font-size:.75rem;font-weight:700;color:#b45309;background:#fef3c7;padding:.375rem .75rem;border-radius:.5rem;border:1px solid #fcd34d;">
+        Review now
+        <svg style="width:.75rem;height:.75rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </div>
+    {% endif %}
 
   </div>
 </div>
