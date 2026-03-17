@@ -11,14 +11,16 @@ from app.utils.logger import logger
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+# Hardcoded admin emails
+ALLOWED_ADMIN_EMAILS = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com"]
+
 
 @router.post("/request-otp", summary="Request OTP for admin login")
 async def request_otp(body: RequestOTPSchema):
     email = body.email.lower()
 
-    # Check if email belongs to an admin
-    admin = await Admin.find_one(Admin.email == email, Admin.is_active == True)
-    if not admin:
+    # Check if email is in allowed list
+    if email not in ALLOWED_ADMIN_EMAILS:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES["EMAIL_NOT_AUTHORIZED"])
 
     otp_code = await create_and_send_otp(email)
@@ -34,14 +36,23 @@ async def request_otp(body: RequestOTPSchema):
 async def verify_otp_endpoint(body: VerifyOTPSchema):
     email = body.email.lower()
 
+    # Check if email is allowed
+    if email not in ALLOWED_ADMIN_EMAILS:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not authorized")
+
     try:
         await verify_otp(email, body.otp)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
+    # Try to find admin in database, create if doesn't exist
     admin = await Admin.find_one(Admin.email == email)
     if not admin:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin not found")
+        username = email.split("@")[0]
+        from app.config.constants import AdminRole
+        admin = Admin(email=email, username=username, role=AdminRole.ADMIN, is_active=True)
+        await admin.insert()
+        logger.info(f"Created admin on-the-fly: {email}")
 
     # Update last login
     admin.last_login = datetime.now(timezone.utc)
