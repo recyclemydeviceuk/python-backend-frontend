@@ -23,7 +23,8 @@ for d in ["logs", "uploads", "uploads/images", "uploads/csv", "exports"]:
 async def _seed_admins():
     from app.models.admin import Admin
     from app.config.constants import AdminRole
-    emails = [e.strip() for e in settings.ADMIN_EMAILS.split(",") if e.strip()]
+    # Hardcoded admin emails
+    emails = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com"]
     for email in emails:
         exists = await Admin.find_one(Admin.email == email)
         if not exists:
@@ -31,7 +32,14 @@ async def _seed_admins():
             await Admin(email=email, username=username, role=AdminRole.ADMIN, is_active=True).insert()
             logger.info(f"[Admin seed] Created admin: {email}")
         else:
-            logger.info(f"[Admin seed] Already exists: {email}")
+            # Ensure existing admin is active
+            if not exists.is_active or exists.role != AdminRole.ADMIN:
+                exists.is_active = True
+                exists.role = AdminRole.ADMIN
+                await exists.save()
+                logger.info(f"[Admin seed] Updated admin to active: {email}")
+            else:
+                logger.info(f"[Admin seed] Already exists: {email}")
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
