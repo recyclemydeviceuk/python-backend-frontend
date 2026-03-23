@@ -14,6 +14,7 @@ async def connect_db():
     from app.models.counter_offer import CounterOffer
     from app.models.device import Device
     from app.models.device_condition import DeviceCondition
+    from app.models.feed_log import FeedLog
     from app.models.ip_whitelist import IpWhitelist
     from app.models.network import Network
     from app.models.order import Order
@@ -44,6 +45,7 @@ async def connect_db():
                 CounterOffer,
                 Device,
                 DeviceCondition,
+                FeedLog,
                 IpWhitelist,
                 Network,
                 Order,

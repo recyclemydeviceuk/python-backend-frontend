@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.routers import (
     auth, devices, orders, pricing, utilities,
     dashboard, contact, upload, export,
-    counter_offers, partners, api_logs, ip_whitelist, api_gateway,
+    counter_offers, partners, api_logs, ip_whitelist, api_gateway, feed, feed_logs,
 )
 
 api_router = APIRouter()
@@ -21,3 +21,5 @@ api_router.include_router(export.router)
 api_router.include_router(counter_offers.router)
 api_router.include_router(partners.router)
 api_router.include_router(ip_whitelist.router)
+api_router.include_router(feed.router)
+api_router.include_router(feed_logs.router)
