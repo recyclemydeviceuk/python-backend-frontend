@@ -85,14 +85,17 @@ async def generate_pricing_feed_csv(
                 grade_new = float(p.get("gradeNew") or p.get("grade_new") or 0)
                 grade_good = float(p.get("gradeGood") or p.get("grade_good") or 0)
                 grade_broken = float(p.get("gradeBroken") or p.get("grade_broken") or 0)
+                
+                storage_val = p.get("storage") or ""
+                full_name_with_storage = f"{full_name_val} {storage_val}".strip() if storage_val else full_name_val
 
                 writer.writerow({
                     "Device ID": device_id,
                     "Brand": brand_val,
                     "Device Name": name_val,
-                    "Full Name": full_name_val,
+                    "Full Name": full_name_with_storage,
                     "Category": category_val,
-                    "Storage": p.get("storage") or "",
+                    "Storage": storage_val,
                     "Network": p.get("network") or "",
                     "NEW": f"{grade_new:.2f}",
                     "GOOD": f"{grade_good:.2f}",

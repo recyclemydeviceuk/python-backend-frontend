@@ -116,13 +116,16 @@ async def pricing_feed_json(
 
         for p in pricing_map.get(device_id, []):
             updated_raw = p.get("updatedAt") or p.get("updated_at")
+            storage_val = p.get("storage") or ""
+            full_name_with_storage = f"{full_name_val} {storage_val}".strip() if storage_val else full_name_val
+            
             result.append({
                 "device_id": device_id,
                 "brand": brand_val,
                 "device_name": name_val,
-                "full_name": full_name_val,
+                "full_name": full_name_with_storage,
                 "category": category_val,
-                "storage": p.get("storage") or "",
+                "storage": storage_val,
                 "network": p.get("network") or "",
                 "price_new": float(p.get("gradeNew") or p.get("grade_new") or 0),
                 "price_good": float(p.get("gradeGood") or p.get("grade_good") or 0),
