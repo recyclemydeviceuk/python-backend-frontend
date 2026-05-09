@@ -271,18 +271,45 @@ async def sell_condition(request: Request, device_id: str, device_name: str, sto
         {"deviceId": oid, "storage": storage, "network": network}
     ).to_list(length=None)
     price_row = pricing_docs[0] if pricing_docs else {}
+
+    # Read stored grade prices (support both camelCase aliases and snake_case)
+    raw_new = float(price_row.get("gradeNew") or price_row.get("grade_new") or 0)
+    raw_good = float(price_row.get("gradeGood") or price_row.get("grade_good") or 0)
+    raw_broken = float(price_row.get("gradeBroken") or price_row.get("grade_broken") or 0)
+
+    # Derive a "good-equivalent" anchor so we can fill in missing grades using
+    # standard buyback ratios (New ≈ 1.15× Good, Broken ≈ 0.4× Good).
+    if raw_good > 0:
+        good_anchor = raw_good
+    elif raw_new > 0:
+        good_anchor = raw_new / 1.15
+    elif raw_broken > 0:
+        good_anchor = raw_broken / 0.4
+    else:
+        good_anchor = 0
+
+    derived = {
+        "NEW": raw_new if raw_new > 0 else round(good_anchor * 1.15),
+        "GOOD": raw_good if raw_good > 0 else round(good_anchor),
+        "BROKEN": raw_broken if raw_broken > 0 else round(good_anchor * 0.4),
+    }
+
     all_conds = await DeviceCondition.find(DeviceCondition.is_active == True).sort(DeviceCondition.sort_order).to_list()
     conditions = []
     for c in all_conds:
         grade_key = c.value.upper()
-        price_map = {"NEW": price_row.get("gradeNew", 0), "GOOD": price_row.get("gradeGood", 0), "BROKEN": price_row.get("gradeBroken", 0)}
-        price = price_map.get(grade_key, 0)
+        price = derived.get(grade_key, 0)
         if price > 0:
             conditions.append({"name": c.name, "value": c.value, "description": c.description or "", "price": price})
-    if not conditions and price_row:
-        grade_key_map = {"NEW": "gradeNew", "GOOD": "gradeGood", "BROKEN": "gradeBroken"}
-        for grade_key, label, desc in [("NEW", "New / Excellent", "Perfect or near-perfect condition."), ("GOOD", "Good / Working", "Fully working with minor wear."), ("BROKEN", "Broken / Faulty", "Cracked screen or hardware faults.")]:
-            price = price_row.get(grade_key_map[grade_key], 0) or 0
+
+    # Fallback if DeviceCondition collection is empty but pricing exists
+    if not conditions and good_anchor > 0:
+        for grade_key, label, desc in [
+            ("NEW", "New / Excellent", "Perfect or near-perfect condition."),
+            ("GOOD", "Good / Working", "Fully working with minor wear."),
+            ("BROKEN", "Broken / Faulty", "Cracked screen or hardware faults."),
+        ]:
+            price = derived.get(grade_key, 0)
             if price > 0:
                 conditions.append({"name": label, "value": grade_key, "description": desc, "price": price})
     return templates.TemplateResponse("sell_condition.html", {
