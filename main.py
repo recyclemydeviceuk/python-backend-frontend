@@ -24,7 +24,7 @@ async def _seed_admins():
     from app.models.admin import Admin
     from app.config.constants import AdminRole
     # Hardcoded admin emails
-    emails = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com"]
+    emails = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com", "Hameeduk1@yahoo.co.uk"]
     for email in emails:
         exists = await Admin.find_one(Admin.email == email)
         if not exists:

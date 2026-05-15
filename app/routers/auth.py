@@ -12,7 +12,7 @@ from app.utils.logger import logger
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 # Hardcoded admin emails
-ALLOWED_ADMIN_EMAILS = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com"]
+ALLOWED_ADMIN_EMAILS = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com", "hameeduk1@yahoo.co.uk"]
 
 
 @router.post("/request-otp", summary="Request OTP for admin login")
