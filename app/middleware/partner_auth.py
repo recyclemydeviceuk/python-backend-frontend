@@ -13,10 +13,23 @@ async def get_current_partner(
     if not x_partner_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing X-Partner-Key header. Please include your partner API key.",
+            detail=(
+                "Authentication failed: the 'X-Partner-Key' header is missing. "
+                "Please include your partner API key on every request, e.g. "
+                "'X-Partner-Key: cmm_pk_xxxxxxxx...'."
+            ),
         )
 
-    # Fetch all active partners and verify by bcrypt hash
+    if not x_partner_key.startswith("cmm_pk_"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Authentication failed: the partner API key format is invalid. "
+                "Keys must begin with 'cmm_pk_'. Please copy the key from the "
+                "Partners page of the CashMyMobile admin panel."
+            ),
+        )
+
     active_partners = await Partner.find(Partner.is_active == True).to_list()
     matched = next(
         (p for p in active_partners if Partner.verify_key(x_partner_key, p.key_hash)),
@@ -28,7 +41,11 @@ async def get_current_partner(
         logger.warning(f"Invalid or inactive partner key attempt from IP: {client_ip}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or inactive partner API key.",
+            detail=(
+                "Authentication failed: the partner API key is either invalid, "
+                "revoked, or belongs to a disabled partner account. "
+                "Please contact support@cashmymobile.co.uk if you believe this is in error."
+            ),
         )
 
     # Update last_used_at asynchronously (fire and forget)

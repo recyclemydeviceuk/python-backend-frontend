@@ -207,12 +207,24 @@ def _ms(start: float) -> int:
     return int((time.time() - start) * 1000)
 
 
-def _err(status: int, message: str) -> JSONResponse:
-    """Build an error response body partners can actually parse."""
-    return JSONResponse(
-        status_code=status,
-        content={"success": False, "error": message, "message": message},
-    )
+def _err(status: int, message: str, field: Optional[str] = None,
+         errors: Optional[list] = None) -> JSONResponse:
+    """Build an error response body partners can actually parse.
+
+    Always includes 'success', 'error' and 'message' (identical strings).
+    Optionally includes 'field' (the single field at fault) and 'errors'
+    (a list of {field, message} entries for per-field validation failures).
+    """
+    content: dict = {
+        "success": False,
+        "error": message,
+        "message": message,
+    }
+    if field:
+        content["field"] = field
+    if errors:
+        content["errors"] = errors
+    return JSONResponse(status_code=status, content=content)
 
 
 async def _read_raw_payload(request: Request) -> dict:
@@ -248,22 +260,46 @@ async def create_external_order(
     # ── 0. Read & normalize payload ──────────────────────────────────────────
     raw_payload = await _read_raw_payload(request)
     if "__raw__" in raw_payload:
-        msg = "Request body must be valid JSON."
+        msg = ("The request body is not valid JSON. "
+               "Please send a JSON object with Content-Type: application/json.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(422, msg)
+        return _err(422, msg, field="body")
+
+    if not raw_payload:
+        msg = ("The request body is empty. "
+               "Please send a JSON object containing the order details.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="body")
 
     try:
         body = GatewayOrderSchema.model_validate(raw_payload)
     except Exception as e:
-        # Should rarely happen now that all fields are Optional, but be safe
-        msg = f"Invalid request body: {e}"
+        msg = (f"The request body could not be parsed. "
+               f"Please check that every field has the correct data type. Details: {e}")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(422, msg)
+        return _err(422, msg, field="body")
 
-    # ── 1. Validate required fields ──────────────────────────────────────────
-    required_pairs = [
+    # ── 1. Per-field required validation ────────────────────────────────────
+    field_errors: list = []
+
+    def _is_blank(v: Any) -> bool:
+        return v is None or (isinstance(v, str) and not v.strip())
+
+    field_label = {
+        "customer_name":    "customer_name (customer full name)",
+        "customer_phone":   "customer_phone (UK mobile number)",
+        "customer_address": "customer_address (full postal address)",
+        "postage_method":   "postage_method ('label' or 'postbag')",
+        "device_name":      "device_name (exact device model name)",
+        "network":          "network (e.g. 'Unlocked', 'EE', 'O2')",
+        "device_grade":     "device_grade ('NEW', 'GOOD' or 'BROKEN')",
+        "offered_price":    "offered_price (positive number in GBP)",
+    }
+
+    for fname, fvalue in [
         ("customer_name",    body.customer_name),
         ("customer_phone",   body.customer_phone),
         ("customer_address", body.customer_address),
@@ -272,45 +308,185 @@ async def create_external_order(
         ("network",          body.network),
         ("device_grade",     body.device_grade),
         ("offered_price",    body.offered_price),
-    ]
-    missing = [name for name, val in required_pairs
-               if val is None or (isinstance(val, str) and not val.strip())]
-    if missing:
-        msg = f"Missing required fields: {', '.join(missing)}"
+    ]:
+        if _is_blank(fvalue):
+            field_errors.append({
+                "field": fname,
+                "message": f"The field '{fname}' is required but was missing or empty. "
+                           f"Please provide {field_label[fname]}.",
+            })
+
+    if field_errors:
+        summary = ("The request is missing one or more required fields: "
+                   + ", ".join(e["field"] for e in field_errors) + ".")
+        await _log_api_request(request, 422, False, None, summary, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, summary, errors=field_errors)
+
+    # ── 2. customer_name format ──────────────────────────────────────────────
+    customer_name = body.customer_name.strip()
+    if len(customer_name) < 2:
+        msg = ("The field 'customer_name' is too short. "
+               "Please provide the customer's full name (at least 2 characters).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(422, msg)
+        return _err(422, msg, field="customer_name")
+    if len(customer_name) > 120:
+        msg = ("The field 'customer_name' is too long. "
+               "Please keep the customer's full name under 120 characters.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="customer_name")
 
-    # ── 2. Validate postage_method (case-insensitive) ────────────────────────
+    # ── 3. customer_phone format (UK mobile / landline) ──────────────────────
+    phone_digits = re.sub(r"[\s\-().]", "", body.customer_phone)
+    if phone_digits.startswith("+44"):
+        phone_digits_normal = "0" + phone_digits[3:]
+    elif phone_digits.startswith("0044"):
+        phone_digits_normal = "0" + phone_digits[4:]
+    else:
+        phone_digits_normal = phone_digits
+    if not re.fullmatch(r"0\d{9,10}", phone_digits_normal):
+        msg = ("The field 'customer_phone' is not a valid UK phone number. "
+               "Please provide a UK number in the format '07XXXXXXXXX' or '+447XXXXXXXXX'.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="customer_phone")
+
+    # ── 4. customer_email format (only when provided) ────────────────────────
+    if body.customer_email:
+        email_value = body.customer_email.strip()
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email_value):
+            msg = ("The field 'customer_email' is not a valid email address. "
+                   "Please provide an address in the format 'name@example.com', "
+                   "or omit the field if you do not wish to send a confirmation email.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner.name, payload=raw_payload)
+            return _err(422, msg, field="customer_email")
+        if len(email_value) > 254:
+            msg = ("The field 'customer_email' is too long. "
+                   "Please keep the email under 254 characters.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner.name, payload=raw_payload)
+            return _err(422, msg, field="customer_email")
+
+    # ── 5. customer_address format ───────────────────────────────────────────
+    customer_address = body.customer_address.strip()
+    if len(customer_address) < 8:
+        msg = ("The field 'customer_address' is too short. "
+               "Please provide the full postal address including house number, "
+               "street, town and postcode.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="customer_address")
+    if len(customer_address) > 500:
+        msg = ("The field 'customer_address' is too long. "
+               "Please keep the postal address under 500 characters.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="customer_address")
+
+    # ── 6. postage_method (case-insensitive, one of 'label' / 'postbag') ─────
     postage_normalized = body.postage_method.strip().lower()
     if postage_normalized not in ("label", "postbag"):
-        msg = f"Invalid postage_method '{body.postage_method}'. Must be 'label' or 'postbag'."
+        msg = (f"The value '{body.postage_method}' is not a valid postage_method. "
+               f"Please use either 'label' (we email a prepaid postage label) "
+               f"or 'postbag' (we post a Royal Mail Tracked postbag to the customer).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(422, msg)
+        return _err(422, msg, field="postage_method")
 
-    # ── 3. Validate device_grade (case-insensitive + common synonyms) ────────
+    # ── 7. device_grade (case-insensitive + common synonyms) ─────────────────
     grade_raw = body.device_grade.strip().upper()
     grade_synonyms = {
-        "NEW": "NEW", "MINT": "NEW", "EXCELLENT": "NEW", "AS_NEW": "NEW",
-        "GOOD": "GOOD", "WORKING": "GOOD", "USED": "GOOD", "FAIR": "GOOD",
-        "BROKEN": "BROKEN", "FAULTY": "BROKEN", "DAMAGED": "BROKEN", "POOR": "BROKEN",
+        "NEW": "NEW", "MINT": "NEW", "EXCELLENT": "NEW", "AS_NEW": "NEW", "LIKE_NEW": "NEW",
+        "GOOD": "GOOD", "WORKING": "GOOD", "USED": "GOOD", "FAIR": "GOOD", "AVERAGE": "GOOD",
+        "BROKEN": "BROKEN", "FAULTY": "BROKEN", "DAMAGED": "BROKEN", "POOR": "BROKEN", "BAD": "BROKEN",
     }
     grade = grade_synonyms.get(grade_raw, grade_raw)
     if grade not in ("NEW", "GOOD", "BROKEN"):
-        msg = f"Invalid device_grade '{body.device_grade}'. Must be NEW, GOOD, or BROKEN."
+        msg = (f"The value '{body.device_grade}' is not a valid device_grade. "
+               f"Please use 'NEW' (perfect or near-perfect condition), "
+               f"'GOOD' (fully working with minor wear) "
+               f"or 'BROKEN' (cracked screen or hardware faults).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(422, msg)
+        return _err(422, msg, field="device_grade")
 
-    # ── 4. Validate offered_price ────────────────────────────────────────────
-    if body.offered_price is None or body.offered_price <= 0:
-        msg = f"Invalid offered_price '{body.offered_price}'. Must be a positive number."
+    # ── 8. offered_price ─────────────────────────────────────────────────────
+    if body.offered_price is None:
+        msg = ("The field 'offered_price' could not be parsed as a number. "
+               "Please send a positive numeric value in GBP, e.g. 655.00 "
+               "(currency symbols and thousand separators are allowed).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(422, msg)
+        return _err(422, msg, field="offered_price")
+    if body.offered_price <= 0:
+        msg = (f"The value '{body.offered_price}' is not a valid offered_price. "
+               f"The offered price must be greater than zero (in GBP).")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="offered_price")
+    if body.offered_price > 5000:
+        msg = (f"The value '{body.offered_price}' is unusually high for a mobile device. "
+               f"Please double-check the offered_price (we cap quotes at £5,000 GBP).")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="offered_price")
 
-    # ── 5. Look up device (exact → partial → fuzzy) ──────────────────────────
+    # ── 9. Optional banking fields — validate format when provided ───────────
+    if body.sort_code:
+        sc = body.sort_code.strip()
+        sc_digits = re.sub(r"\D", "", sc)
+        if len(sc_digits) != 6:
+            msg = (f"The value '{body.sort_code}' is not a valid UK sort code. "
+                   f"Please provide a 6-digit sort code in the format '20-00-00'.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner.name, payload=raw_payload)
+            return _err(422, msg, field="sort_code")
+
+    if body.account_number:
+        an = re.sub(r"\D", "", body.account_number.strip())
+        if len(an) != 8:
+            msg = ("The field 'account_number' is not a valid UK bank account number. "
+                   "Please provide an 8-digit account number (digits only).")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner.name, payload=raw_payload)
+            return _err(422, msg, field="account_number")
+
+    if body.bank_name and len(body.bank_name.strip()) > 100:
+        msg = ("The field 'bank_name' is too long. "
+               "Please keep the bank name under 100 characters.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="bank_name")
+
+    # If any banking field is given, encourage the full set to avoid payout delays
+    bank_fields_present = [bool(body.bank_name), bool(body.account_number), bool(body.sort_code)]
+    if any(bank_fields_present) and not all(bank_fields_present):
+        missing_bank = []
+        if not body.bank_name:      missing_bank.append("bank_name")
+        if not body.account_number: missing_bank.append("account_number")
+        if not body.sort_code:      missing_bank.append("sort_code")
+        msg = ("Partial bank details were provided. "
+               f"To process payment we need all three of bank_name, account_number "
+               f"and sort_code. Missing: {', '.join(missing_bank)}.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="payout_details", errors=[
+            {"field": f, "message": f"'{f}' is required when any bank field is supplied."}
+            for f in missing_bank
+        ])
+
+    # ── 10. transaction_id length sanity ─────────────────────────────────────
+    if body.transaction_id and len(body.transaction_id) > 128:
+        msg = ("The field 'transaction_id' is too long. "
+               "Please keep your internal reference under 128 characters.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="transaction_id")
+
+    # ── 11. Look up device (exact → partial → fuzzy) ─────────────────────────
     requested = body.device_name.strip()
     requested_lc = requested.lower()
     requested_compact = re.sub(r"\s+", " ", requested_lc)
@@ -327,12 +503,10 @@ async def create_external_order(
                 candidates.append(f"{d.brand} {d.name}".strip().lower())
         return [c for c in candidates if c]
 
-    # 5a. Exact match
     device = next(
         (d for d in active_devices if requested_compact in _names_for(d)),
         None,
     )
-    # 5b. Match ignoring brand prefix duplication ("apple apple iphone 11" etc.)
     if not device:
         stripped = re.sub(r"^(apple|samsung)\s+", "", requested_compact)
         device = next(
@@ -341,7 +515,6 @@ async def create_external_order(
                     for n in _names_for(d))),
             None,
         )
-    # 5c. Containment fallback — every catalog token present in the request
     if not device:
         for d in active_devices:
             for n in _names_for(d):
@@ -352,15 +525,48 @@ async def create_external_order(
             if device:
                 break
     if not device:
-        msg = f"Device not found: {body.device_name}. Please use a valid device from our catalog."
+        msg = (f"The device '{body.device_name}' was not found in our catalogue. "
+               f"Please provide the exact device name as listed on cashmymobile.co.uk "
+               f"(for example, 'Apple iPhone 16 Pro Max' or 'Samsung Galaxy S24 Ultra').")
         await _log_api_request(request, 404, False, None, msg, _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(404, msg)
+        return _err(404, msg, field="device_name")
 
-    # ── 6. Validate network/storage pricing combo if storage provided ────────
+    # ── 12. network: must be one of the supported carriers ──────────────────
+    supported_networks = ["Unlocked", "EE", "O2", "Vodafone", "Three",
+                          "Virgin Mobile", "Tesco Mobile", "Giffgaff"]
+    network_lookup = {n.lower(): n for n in supported_networks}
+    network_lc = body.network.strip().lower()
+    canonical_network = network_lookup.get(network_lc)
+    if not canonical_network:
+        # Try a more forgiving match (e.g. "vodaphone", "ee mobile")
+        for low, canon in network_lookup.items():
+            if low in network_lc or network_lc in low:
+                canonical_network = canon
+                break
+    if not canonical_network:
+        msg = (f"The value '{body.network}' is not a supported network. "
+               f"Please use one of: {', '.join(supported_networks)}.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner.name, payload=raw_payload)
+        return _err(422, msg, field="network")
+
+    # ── 13. storage: must be one of the supported capacities (when present) ─
+    supported_storage = ["64GB", "128GB", "256GB", "512GB", "1TB", "2TB"]
+    canonical_storage = None
     if body.storage:
-        requested_network = body.network.strip().lower()
-        requested_storage = body.storage.strip().lower()
+        st = body.storage.strip().upper().replace(" ", "")
+        st_lookup = {s.upper(): s for s in supported_storage}
+        canonical_storage = st_lookup.get(st)
+        if not canonical_storage:
+            msg = (f"The value '{body.storage}' is not a supported storage capacity. "
+                   f"Please use one of: {', '.join(supported_storage)}.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner.name, payload=raw_payload)
+            return _err(422, msg, field="storage")
+
+    # ── 14. Validate network/storage pricing combo if storage provided ───────
+    if canonical_storage:
         pricing_collection = Pricing.get_motor_collection()
         pricing_query: dict = {
             "$or": [
@@ -388,17 +594,32 @@ async def create_external_order(
         pricing_entry = next(
             (
                 p for p in pricing_rows
-                if (p.network or "").strip().lower() == requested_network
-                and (p.storage or "").strip().lower() == requested_storage
+                if (p.network or "").strip().lower() == canonical_network.lower()
+                and (p.storage or "").strip().lower() == canonical_storage.lower()
             ),
             None,
         )
         if not pricing_entry:
-            msg = (f"Invalid configuration: {body.network} / {body.storage} is not available "
-                   f"for {body.device_name}. Please check available options.")
+            available_combos = sorted({
+                f"{p.network} / {p.storage}" for p in pricing_rows
+                if p.network and p.storage
+            })
+            hint = (f" Available combinations for this device: {', '.join(available_combos)}."
+                    if available_combos else "")
+            msg = (f"The combination network='{canonical_network}' and "
+                   f"storage='{canonical_storage}' is not available for "
+                   f"'{body.device_name}'.{hint}")
             await _log_api_request(request, 400, False, None, msg, _ms(start_time),
                                    partner.name, payload=raw_payload)
-            return _err(400, msg)
+            return _err(400, msg, field="network/storage")
+
+    # Use the canonical values from here on
+    body.network = canonical_network
+    if canonical_storage:
+        body.storage = canonical_storage
+    body.customer_phone = phone_digits_normal
+    body.customer_name = customer_name
+    body.customer_address = customer_address
 
     # ── 7. Create order ──────────────────────────────────────────────────────
     order_number = await generate_unique_order_number()
@@ -435,10 +656,14 @@ async def create_external_order(
         await order.insert()
     except Exception as e:
         logger.exception(f"Failed to persist gateway order: {e}")
-        msg = f"Failed to create order: {e}"
-        await _log_api_request(request, 500, False, None, msg, _ms(start_time),
+        await _log_api_request(request, 500, False, None, str(e), _ms(start_time),
                                partner.name, payload=raw_payload)
-        return _err(500, "Internal error while creating order. Please retry or contact support.")
+        return _err(
+            500,
+            "An internal error occurred while saving the order. "
+            "Please retry the request shortly, or contact support@cashmymobile.co.uk "
+            "if the problem persists.",
+        )
 
     # ── 8. Increment partner order count ─────────────────────────────────────
     try:
@@ -523,7 +748,14 @@ async def gateway_get_order(
         Order.partner_name == partner.name,
     )
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No order was found with order number '{order_number}' "
+                f"under your partner account. Please verify the order number "
+                f"and ensure it was created via your X-Partner-Key."
+            ),
+        )
     return success_response({"order": _serialize(order)})
 
 
