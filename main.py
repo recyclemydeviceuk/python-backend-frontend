@@ -337,8 +337,9 @@ async def sell_condition(request: Request, device_id: str, device_name: str, sto
     raw_good = float(price_row.get("gradeGood") or price_row.get("grade_good") or 0)
     raw_broken = float(price_row.get("gradeBroken") or price_row.get("grade_broken") or 0)
 
-    # Derive a "good-equivalent" anchor so we can fill in missing grades using
-    # standard buyback ratios (New ≈ 1.15× Good, Broken ≈ 0.4× Good).
+    # Pick a "good-equivalent" anchor for derivation when grade columns are
+    # missing or all duplicated (e.g. the CSV import populated all three with
+    # the same value).
     if raw_good > 0:
         good_anchor = raw_good
     elif raw_new > 0:
@@ -348,11 +349,21 @@ async def sell_condition(request: Request, device_id: str, device_name: str, sto
     else:
         good_anchor = 0
 
-    derived = {
-        "NEW": raw_new if raw_new > 0 else round(good_anchor * 1.15),
-        "GOOD": raw_good if raw_good > 0 else round(good_anchor),
-        "BROKEN": raw_broken if raw_broken > 0 else round(good_anchor * 0.4),
-    }
+    distinct_grades = {p for p in (raw_new, raw_good, raw_broken) if p > 0}
+    if len(distinct_grades) >= 2:
+        # DB has differentiated per-grade pricing — trust it, derive any missing
+        derived = {
+            "NEW":    raw_new    if raw_new    > 0 else round(good_anchor * 1.15),
+            "GOOD":   raw_good   if raw_good   > 0 else round(good_anchor),
+            "BROKEN": raw_broken if raw_broken > 0 else round(good_anchor * 0.4),
+        }
+    else:
+        # All three are zero or all three are the same value → derive from anchor
+        derived = {
+            "NEW":    round(good_anchor * 1.15),
+            "GOOD":   round(good_anchor),
+            "BROKEN": round(good_anchor * 0.4),
+        }
 
     # Always offer all three grades — use DeviceCondition entries only as
     # optional name/description overrides keyed by NEW/GOOD/BROKEN.
