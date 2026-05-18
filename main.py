@@ -354,24 +354,36 @@ async def sell_condition(request: Request, device_id: str, device_name: str, sto
         "BROKEN": raw_broken if raw_broken > 0 else round(good_anchor * 0.4),
     }
 
-    all_conds = await DeviceCondition.find(DeviceCondition.is_active == True).sort(DeviceCondition.sort_order).to_list()
+    # Always offer all three grades — use DeviceCondition entries only as
+    # optional name/description overrides keyed by NEW/GOOD/BROKEN.
+    default_grades = [
+        ("NEW",    "New / Excellent",  "Perfect or near-perfect condition."),
+        ("GOOD",   "Good / Working",   "Fully working with minor wear."),
+        ("BROKEN", "Broken / Faulty",  "Cracked screen or hardware faults."),
+    ]
+    overrides: dict = {}
+    try:
+        all_conds = await DeviceCondition.find(
+            DeviceCondition.is_active == True
+        ).sort(DeviceCondition.sort_order).to_list()
+        for c in all_conds:
+            key = (c.value or "").strip().upper()
+            if key in ("NEW", "GOOD", "BROKEN") and key not in overrides:
+                overrides[key] = {"name": c.name, "description": c.description or ""}
+    except Exception:
+        pass
+
     conditions = []
-    for c in all_conds:
-        grade_key = c.value.upper()
+    for grade_key, default_label, default_desc in default_grades:
         price = derived.get(grade_key, 0)
         if price > 0:
-            conditions.append({"name": c.name, "value": c.value, "description": c.description or "", "price": price})
-
-    # Fallback if DeviceCondition collection is empty but pricing exists
-    if not conditions and good_anchor > 0:
-        for grade_key, label, desc in [
-            ("NEW", "New / Excellent", "Perfect or near-perfect condition."),
-            ("GOOD", "Good / Working", "Fully working with minor wear."),
-            ("BROKEN", "Broken / Faulty", "Cracked screen or hardware faults."),
-        ]:
-            price = derived.get(grade_key, 0)
-            if price > 0:
-                conditions.append({"name": label, "value": grade_key, "description": desc, "price": price})
+            override = overrides.get(grade_key) or {}
+            conditions.append({
+                "name": override.get("name") or default_label,
+                "value": grade_key,
+                "description": override.get("description") or default_desc,
+                "price": price,
+            })
     return templates.TemplateResponse("sell_condition.html", {
         "request": request, "active_page": "sell",
         "device_id": device_id, "device_name": device_name,
