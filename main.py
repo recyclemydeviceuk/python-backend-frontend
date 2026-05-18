@@ -2,10 +2,11 @@ import os
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from pathlib import Path
 from typing import Optional
 
@@ -82,6 +83,65 @@ app.add_middleware(
 # ── Static Files ───────────────────────────────────────────────────────────────
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/exports", StaticFiles(directory="exports"), name="exports")
+
+# ── Global validation-error handler ────────────────────────────────────────────
+# Pydantic body validation failures normally return an opaque 422 — partners
+# integrating against /api/gateway only see "UnprocessableEntity" and have no
+# way to know which field was wrong. This handler always returns a parseable
+# JSON body that names the offending field(s).
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors() or []
+    # Build a human-readable summary of what went wrong
+    summary_parts = []
+    for err in errors:
+        loc = ".".join(str(p) for p in err.get("loc", []) if p not in ("body",))
+        msg = err.get("msg", "invalid")
+        summary_parts.append(f"{loc}: {msg}" if loc else msg)
+    summary = "; ".join(summary_parts) or "Request validation failed."
+
+    # Best-effort: log gateway validation failures into the API log so admins
+    # can debug what partners are actually sending.
+    if request.url.path.startswith("/api/gateway"):
+        try:
+            from app.models.api_log import ApiLog
+            raw_body = ""
+            try:
+                raw_bytes = await request.body()
+                raw_body = raw_bytes.decode("utf-8", errors="replace")[:4000]
+            except Exception:
+                pass
+            await ApiLog(
+                method=request.method,
+                endpoint=str(request.url.path),
+                status_code=422,
+                source_ip=request.client.host if request.client else "unknown",
+                payload=raw_body or json.dumps({"errors": errors}, default=str)[:4000],
+                error=summary,
+                response_time=0,
+                success=False,
+                order_number=None,
+            ).insert()
+        except Exception:
+            pass
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "error": summary,
+            "message": summary,
+            "errors": [
+                {
+                    "field": ".".join(str(p) for p in e.get("loc", []) if p not in ("body",)),
+                    "message": e.get("msg"),
+                    "type": e.get("type"),
+                }
+                for e in errors
+            ],
+        },
+    )
+
 
 # ── API Routes ─────────────────────────────────────────────────────────────────
 app.include_router(api_router, prefix="/api")
