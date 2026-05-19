@@ -11,12 +11,19 @@ _request_counts: dict = defaultdict(list)
 # IPs that are never rate-limited (localhost / loopback)
 _EXEMPT_IPS = {"127.0.0.1", "::1", "localhost"}
 
-# Admin panel / docs paths that should never be rate-limited
+# Paths that should NEVER be rate-limited:
+#   - admin panel & docs
+#   - /api/gateway/* — partner integration endpoint. We deliberately do NOT
+#     rate-limit partners (MoneySupermarket, etc.) at the application layer.
+#     Per-partner throttling, if ever needed, must be wired explicitly in the
+#     gateway handler — never via a blanket IP-based limiter that could
+#     accidentally block a high-volume partner.
 _EXEMPT_PATH_PREFIXES = (
     "/docs",
     "/redoc",
     "/openapi",
     "/admin",
+    "/api/gateway",
 )
 
 

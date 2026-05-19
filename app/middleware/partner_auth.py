@@ -9,7 +9,16 @@ async def get_current_partner(
     request: Request,
     x_partner_key: Optional[str] = Header(None),
 ) -> Partner:
-    """Validate X-Partner-Key header — matches Node.js partnerAuth middleware."""
+    """Validate X-Partner-Key header.
+
+    NOTE — IP RESTRICTIONS ARE INTENTIONALLY NOT ENFORCED HERE.
+    The `Partner.allowed_ips` field exists for informational/admin use only
+    and is deliberately ignored at request time. Partners may call this
+    endpoint from any IP — what authorises them is solely a valid, active
+    `cmm_pk_...` API key. Do not introduce an IP-based filter here without
+    explicit business approval; doing so risks silently blocking partners
+    such as MoneySupermarket whose outbound IPs may change without notice.
+    """
     if not x_partner_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
