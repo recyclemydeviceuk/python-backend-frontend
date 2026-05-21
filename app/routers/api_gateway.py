@@ -1,7 +1,7 @@
 import time
 import json
 import re
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Optional, Any
@@ -10,6 +10,7 @@ from bson import ObjectId
 from app.models.order import Order
 from app.models.api_log import ApiLog
 from app.models.device import Device
+from app.models.partner import Partner
 from app.models.pricing import Pricing
 from app.middleware.partner_auth import get_current_partner
 from app.utils.order_number import generate_unique_order_number
@@ -21,13 +22,93 @@ from app.services.email_service import send_order_confirmation
 router = APIRouter(prefix="/gateway", tags=["API Gateway"])
 
 
+# DecisionTech / MoneySupermarket test IPs (per their integration guide).
+# Used ONLY for informational attribution when no X-Partner-Key is supplied —
+# not for access control.
+_DECISIONTECH_IPS = {
+    "35.189.124.202",
+    "109.176.94.116",
+    "109.176.117.84",
+    "35.197.205.228",
+}
+_DEFAULT_DOP_PARTNER_NAME = "DecisionTech / MoneySupermarket"
+
+
+async def _resolve_partner_optional(
+    request: Request,
+    x_partner_key: Optional[str],
+) -> tuple:
+    """Return (partner_or_none, partner_name_for_log).
+
+    • If X-Partner-Key is supplied, validate it strictly (401 on bad key).
+    • If absent, allow the request through and attribute it to a default
+      'DecisionTech / MoneySupermarket' partner (matching the DOP spec which
+      does NOT require an API key). Auto-creates that partner row on first use
+      so admin reporting / filtering keeps working.
+    """
+    if x_partner_key:
+        # Strict validation — bad key still rejected
+        if not x_partner_key.startswith("cmm_pk_"):
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    "Authentication failed: the partner API key format is invalid. "
+                    "Keys must begin with 'cmm_pk_'."
+                ),
+            )
+        active_partners = await Partner.find(Partner.is_active == True).to_list()
+        matched = next(
+            (p for p in active_partners if Partner.verify_key(x_partner_key, p.key_hash)),
+            None,
+        )
+        if not matched:
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    "Authentication failed: the partner API key is either invalid, "
+                    "revoked, or belongs to a disabled partner account."
+                ),
+            )
+        try:
+            matched.last_used_at = datetime.utcnow()
+            await matched.save()
+        except Exception:
+            pass
+        return matched, matched.name
+
+    # No key — fall back to the DecisionTech default partner
+    name = _DEFAULT_DOP_PARTNER_NAME
+    try:
+        partner = await Partner.find_one(Partner.name == name)
+        if not partner:
+            partner = Partner(
+                name=name,
+                key_hash="",  # no key — auth-less attribution only
+                key_prefix="dop_",
+                is_active=True,
+                notes="Auto-created for DecisionTech DOP traffic (no X-Partner-Key required).",
+            )
+            await partner.insert()
+        partner.last_used_at = datetime.utcnow()
+        await partner.save()
+        return partner, partner.name
+    except Exception as e:
+        logger.warning(f"Could not resolve default DOP partner: {e}")
+        return None, name
+
+
 # ── Field-name aliases ────────────────────────────────────────────────────────
 # Maps every accepted incoming key (lower-cased, dashes/spaces→underscore) to
-# our canonical schema field. Lets us absorb partner payloads that use slightly
-# different field naming without rejecting the whole request.
+# our canonical schema field. Built to satisfy:
+#   • the original CashMyMobile spec (customer_name, customer_phone, …)
+#   • the DecisionTech / MoneySupermarket DOP spec (first_name, street1, …,
+#     device_price, bank_account_number, bank_sort_code, paypal_email, …)
+#   • assorted casing / synonyms partners commonly send.
 _FIELD_ALIASES = {
     "customer_name":    ["customer_name", "customername", "name", "full_name", "fullname",
                          "customer", "first_name_last_name"],
+    "first_name":       ["first_name", "firstname", "fname", "givenname", "given_name"],
+    "last_name":        ["last_name", "lastname", "lname", "surname", "familyname", "family_name"],
     "customer_phone":   ["customer_phone", "customerphone", "phone", "phone_number",
                          "phonenumber", "mobile", "mobile_number", "mobilenumber",
                          "contact_number", "contact_phone", "tel", "telephone"],
@@ -36,9 +117,20 @@ _FIELD_ALIASES = {
     "customer_address": ["customer_address", "customeraddress", "address", "full_address",
                          "fulladdress", "delivery_address", "deliveryaddress",
                          "shipping_address", "postal_address"],
+    # DecisionTech sends the postal address as separate components — we'll
+    # combine them into customer_address in the validator below.
+    "street1":          ["street1", "address1", "address_line_1", "addressline1",
+                         "address_line1", "line1", "house_number", "house"],
+    "street2":          ["street2", "address2", "address_line_2", "addressline2",
+                         "address_line2", "line2"],
+    "city":             ["city", "town", "locality"],
+    "county":           ["county", "state", "region", "province"],
+    "country":          ["country", "country_name"],
     "postcode":         ["postcode", "post_code", "postal_code", "postalcode", "zip", "zipcode"],
     "postage_method":   ["postage_method", "postagemethod", "postage", "shipping_method",
                          "shippingmethod", "shipping", "delivery_method", "fulfilment_method"],
+    "payment_method":   ["payment_method", "paymentmethod", "payment", "pay_method", "paymethod"],
+    "paypal_email":     ["paypal_email", "paypalemail", "paypal", "paypal_address"],
     "device_name":      ["device_name", "devicename", "device", "device_model", "devicemodel",
                          "model", "model_name", "modelname", "phone_model", "phone_name",
                          "product_name", "productname", "handset"],
@@ -47,7 +139,7 @@ _FIELD_ALIASES = {
                          "device_condition", "phone_condition", "handset_condition"],
     "offered_price":    ["offered_price", "offeredprice", "price", "amount", "value",
                          "offer", "offer_price", "offerprice", "quote", "quoted_price",
-                         "payout", "payout_amount"],
+                         "payout", "payout_amount", "device_price", "deviceprice"],
     "storage":          ["storage", "storage_capacity", "storagecapacity", "capacity",
                          "memory", "memory_capacity", "rom"],
     "bank_name":        ["bank_name", "bankname", "bank", "payout_account_name",
@@ -59,8 +151,15 @@ _FIELD_ALIASES = {
                          "bank_sort_code", "banksortcode", "sort"],
     "transaction_id":   ["transaction_id", "transactionid", "txn_id", "txnid", "reference",
                          "ref", "partner_ref", "partnerref", "external_id", "externalid",
-                         "order_ref", "orderref", "client_ref"],
+                         "order_ref", "orderref", "client_ref", "order_id", "orderid"],
     "device_id":        ["device_id", "deviceid", "product_id", "productid", "sku"],
+    # DecisionTech extra fault descriptors — captured for admin context.
+    "device_cracked_display": ["device_cracked_display", "devicecrackeddisplay",
+                                "cracked_display", "screen_cracked"],
+    "device_other_faults":    ["device_other_faults", "deviceotherfaults",
+                                "other_faults", "faults"],
+    "device_single_button_fault": ["device_single_button_fault", "devicesinglebuttonfault",
+                                    "single_button_fault", "button_fault"],
 }
 
 
@@ -90,6 +189,36 @@ def _coerce_price(value: Any) -> Optional[float]:
     return None
 
 
+# DecisionTech grade-code mapping: 0 = working (GOOD), 1 = broken, 2 = new.
+# Plus string synonyms / case-insensitive accepted everywhere.
+_GRADE_NUMERIC = {"0": "GOOD", "1": "BROKEN", "2": "NEW"}
+_GRADE_SYNONYMS = {
+    "NEW": "NEW", "MINT": "NEW", "EXCELLENT": "NEW", "AS_NEW": "NEW", "LIKE_NEW": "NEW",
+    "GOOD": "GOOD", "WORKING": "GOOD", "USED": "GOOD", "FAIR": "GOOD", "AVERAGE": "GOOD",
+    "BROKEN": "BROKEN", "FAULTY": "BROKEN", "DAMAGED": "BROKEN", "POOR": "BROKEN", "BAD": "BROKEN",
+}
+
+
+def _coerce_grade(value: Any) -> Optional[str]:
+    """Accept device_grade as numeric 0/1/2, common strings, or synonyms."""
+    if value is None or value == "":
+        return None
+    # Booleans should not be silently coerced (True == 1)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return _GRADE_NUMERIC.get(str(int(value)))
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        if s in _GRADE_NUMERIC:
+            return _GRADE_NUMERIC[s]
+        u = s.upper().replace(" ", "_").replace("-", "_")
+        return _GRADE_SYNONYMS.get(u, u if u in ("NEW", "GOOD", "BROKEN") else None)
+    return None
+
+
 def _to_str(value: Any) -> Optional[str]:
     if value is None:
         return None
@@ -106,48 +235,100 @@ class GatewayOrderSchema(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
+    # Customer
     customer_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     customer_phone: Optional[str] = None
     customer_email: Optional[str] = None
+
+    # Address (full string OR DecisionTech component fields)
     customer_address: Optional[str] = None
+    street1: Optional[str] = None
+    street2: Optional[str] = None
+    city: Optional[str] = None
+    county: Optional[str] = None
+    country: Optional[str] = None
     postcode: Optional[str] = None
+
+    # Logistics
     postage_method: Optional[str] = None
+    payment_method: Optional[str] = None
+    paypal_email: Optional[str] = None
+
+    # Device
+    device_id: Optional[str] = None
     device_name: Optional[str] = None
     network: Optional[str] = None
     device_grade: Optional[str] = None
     offered_price: Optional[float] = None
     storage: Optional[str] = None
+
+    # Fault descriptors (DecisionTech)
+    device_cracked_display: Optional[str] = None
+    device_other_faults: Optional[str] = None
+    device_single_button_fault: Optional[str] = None
+
+    # Payout
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
     sort_code: Optional[str] = None
+
+    # Reference
     transaction_id: Optional[str] = None
-    device_id: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
     def _normalize_aliases(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
+
         # Build a lookup of normalized incoming keys → original value
         lookup: dict = {}
         for k, v in data.items():
             nk = _normalize_key(k)
             if nk and nk not in lookup:
                 lookup[nk] = v
+
         out: dict = {}
         for canonical, variants in _FIELD_ALIASES.items():
             for v in variants:
                 if v in lookup and lookup[v] not in (None, ""):
                     out[canonical] = lookup[v]
                     break
-        # Coerce price up front so Pydantic's float type accepts it
+
+        # ── Build customer_name from first_name + last_name if missing ─────
+        if not out.get("customer_name"):
+            fn = (out.get("first_name") or "").strip() if isinstance(out.get("first_name"), str) else ""
+            ln = (out.get("last_name") or "").strip() if isinstance(out.get("last_name"), str) else ""
+            combined = (fn + " " + ln).strip()
+            if combined:
+                out["customer_name"] = combined
+
+        # ── Build customer_address from postal components if missing ───────
+        if not out.get("customer_address"):
+            parts = []
+            for k in ("street1", "street2", "city", "county", "postcode", "country"):
+                val = out.get(k)
+                if isinstance(val, str) and val.strip():
+                    parts.append(val.strip())
+            if parts:
+                out["customer_address"] = ", ".join(parts)
+
+        # Coerce price (DecisionTech sends as quoted string like "99.99")
         if "offered_price" in out:
             out["offered_price"] = _coerce_price(out["offered_price"])
-        # Coerce phone / account-number / IDs that may arrive as int
+
+        # Coerce ID-style fields that may arrive as int (form-urlencoded gives
+        # strings, but JSON clients sometimes send raw numbers).
         for key in ("customer_phone", "account_number", "sort_code", "device_id",
-                    "transaction_id", "storage", "postcode"):
+                    "transaction_id", "storage", "postcode", "first_name", "last_name",
+                    "street1", "street2", "city", "county", "country",
+                    "device_cracked_display", "device_other_faults",
+                    "device_single_button_fault"):
             if key in out and out[key] is not None and not isinstance(out[key], str):
                 out[key] = str(out[key])
+
         return out
 
 
@@ -228,7 +409,18 @@ def _err(status: int, message: str, field: Optional[str] = None,
 
 
 async def _read_raw_payload(request: Request) -> dict:
-    """Read raw JSON body; tolerate empty or malformed payloads."""
+    """Read the request body in whichever format the partner sent.
+
+    Supports — in priority order:
+      • application/json
+      • application/x-www-form-urlencoded   ← DecisionTech / MoneySupermarket
+      • multipart/form-data
+      • bare query-string style bodies (auto-detected when JSON parse fails)
+
+    Returns the parsed dict, or `{"__raw__": "..."}` on hard parse failure.
+    """
+    from urllib.parse import parse_qsl
+
     try:
         raw = await request.body()
         if not raw:
@@ -236,41 +428,96 @@ async def _read_raw_payload(request: Request) -> dict:
         text = raw.decode("utf-8", errors="replace").strip()
         if not text:
             return {}
+
+        content_type = (request.headers.get("content-type") or "").lower()
+
+        # 1) Explicit JSON
+        if "application/json" in content_type or text.startswith(("{", "[")):
+            try:
+                data = json.loads(text)
+                if isinstance(data, dict):
+                    return data
+                return {"__raw__": str(data)[:2000]}
+            except json.JSONDecodeError:
+                pass  # fall through and try form parsing
+
+        # 2) Explicit form-urlencoded (or multipart) — DecisionTech default
+        if ("application/x-www-form-urlencoded" in content_type
+                or "multipart/form-data" in content_type):
+            try:
+                form = await request.form()
+                parsed = {}
+                for k, v in form.multi_items():
+                    # First occurrence wins (DecisionTech sends each key once)
+                    if k not in parsed:
+                        parsed[k] = v if isinstance(v, str) else str(v)
+                return parsed
+            except Exception:
+                pass
+
+        # 3) Auto-detect: body looks like key=value&key=value
+        if "=" in text and "{" not in text:
+            try:
+                pairs = parse_qsl(text, keep_blank_values=True)
+                if pairs:
+                    parsed = {}
+                    for k, v in pairs:
+                        if k not in parsed:
+                            parsed[k] = v
+                    return parsed
+            except Exception:
+                pass
+
+        # 4) Last-ditch: try JSON parse again (in case content-type was wrong)
         try:
             data = json.loads(text)
+            if isinstance(data, dict):
+                return data
         except json.JSONDecodeError:
-            return {"__raw__": text[:2000]}
-        if isinstance(data, dict):
-            return data
-        return {"__raw__": str(data)[:2000]}
+            pass
+
+        return {"__raw__": text[:2000]}
     except Exception as e:
         logger.warning(f"Failed to read gateway payload: {e}")
         return {}
 
 
 # ── Endpoint ─────────────────────────────────────────────────────────────────
-@router.post("/decisiontech", summary="Create order via partner API (DecisionTech integration)")
+@router.post(
+    "/decisiontech",
+    summary="Create order via partner API (DecisionTech DOP integration)",
+)
 async def create_external_order(
     request: Request,
-    partner=Depends(get_current_partner),
+    x_partner_key: Optional[str] = Header(None),
 ):
-    """POST /api/gateway/decisiontech — partner order creation."""
+    """POST /api/gateway/decisiontech — DecisionTech DOP-compatible endpoint.
+
+    Accepts either application/json OR application/x-www-form-urlencoded body.
+    The X-Partner-Key header is OPTIONAL: DecisionTech DOP does not send one,
+    so requests without a key are attributed to the auto-created
+    'DecisionTech / MoneySupermarket' partner. Existing CashMyMobile partners
+    that DO send a key continue to be authenticated strictly.
+    """
     start_time = time.time()
+
+    # ── Resolve partner (strict if key supplied, default otherwise) ─────────
+    partner, partner_name = await _resolve_partner_optional(request, x_partner_key)
 
     # ── 0. Read & normalize payload ──────────────────────────────────────────
     raw_payload = await _read_raw_payload(request)
     if "__raw__" in raw_payload:
-        msg = ("The request body is not valid JSON. "
-               "Please send a JSON object with Content-Type: application/json.")
+        msg = ("The request body could not be parsed. Please send the order data "
+               "as either application/json or application/x-www-form-urlencoded.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="body")
 
     if not raw_payload:
-        msg = ("The request body is empty. "
-               "Please send a JSON object containing the order details.")
+        msg = ("The request body is empty. Please send the order details either "
+               "as a JSON object or as URL-encoded form data.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="body")
 
     try:
@@ -279,7 +526,7 @@ async def create_external_order(
         msg = (f"The request body could not be parsed. "
                f"Please check that every field has the correct data type. Details: {e}")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="body")
 
     # ── 1. Per-field required validation ────────────────────────────────────
@@ -320,7 +567,7 @@ async def create_external_order(
         summary = ("The request is missing one or more required fields: "
                    + ", ".join(e["field"] for e in field_errors) + ".")
         await _log_api_request(request, 422, False, None, summary, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, summary, errors=field_errors)
 
     # ── 2. customer_name format ──────────────────────────────────────────────
@@ -329,28 +576,32 @@ async def create_external_order(
         msg = ("The field 'customer_name' is too short. "
                "Please provide the customer's full name (at least 2 characters).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="customer_name")
     if len(customer_name) > 120:
         msg = ("The field 'customer_name' is too long. "
                "Please keep the customer's full name under 120 characters.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="customer_name")
 
-    # ── 3. customer_phone format (UK mobile / landline) ──────────────────────
-    phone_digits = re.sub(r"[\s\-().]", "", body.customer_phone)
-    if phone_digits.startswith("+44"):
-        phone_digits_normal = "0" + phone_digits[3:]
-    elif phone_digits.startswith("0044"):
+    # ── 3. customer_phone format (UK mobile or landline, lenient) ────────────
+    # DecisionTech's example phones include 11-digit UK numbers; we normalize
+    # +44 / 0044 prefixes to a leading 0 but otherwise accept any 7–15 digit
+    # string so we don't reject perfectly valid customer phones.
+    phone_digits = re.sub(r"[\s\-().+]", "", body.customer_phone)
+    if phone_digits.startswith("0044"):
         phone_digits_normal = "0" + phone_digits[4:]
+    elif phone_digits.startswith("44") and len(phone_digits) >= 11:
+        phone_digits_normal = "0" + phone_digits[2:]
     else:
         phone_digits_normal = phone_digits
-    if not re.fullmatch(r"0\d{9,10}", phone_digits_normal):
-        msg = ("The field 'customer_phone' is not a valid UK phone number. "
-               "Please provide a UK number in the format '07XXXXXXXXX' or '+447XXXXXXXXX'.")
+    if not re.fullmatch(r"\d{7,15}", phone_digits_normal):
+        msg = ("The field 'customer_phone' does not look like a phone number. "
+               "Please provide the customer's contact number "
+               "(UK format e.g. '07XXXXXXXXX' or '+447XXXXXXXXX').")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="customer_phone")
 
     # ── 4. customer_email format (only when provided) ────────────────────────
@@ -361,56 +612,69 @@ async def create_external_order(
                    "Please provide an address in the format 'name@example.com', "
                    "or omit the field if you do not wish to send a confirmation email.")
             await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                                   partner.name, payload=raw_payload)
+                                   partner_name, payload=raw_payload)
             return _err(422, msg, field="customer_email")
         if len(email_value) > 254:
             msg = ("The field 'customer_email' is too long. "
                    "Please keep the email under 254 characters.")
             await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                                   partner.name, payload=raw_payload)
+                                   partner_name, payload=raw_payload)
             return _err(422, msg, field="customer_email")
 
     # ── 5. customer_address format ───────────────────────────────────────────
+    # DecisionTech sometimes builds addresses from sparse components, so the
+    # minimum length is intentionally low. We still require a postcode SOMEWHERE
+    # (either in customer_address or in the postcode field) so packages can be
+    # delivered.
     customer_address = body.customer_address.strip()
-    if len(customer_address) < 8:
+    if len(customer_address) < 4:
         msg = ("The field 'customer_address' is too short. "
                "Please provide the full postal address including house number, "
-               "street, town and postcode.")
+               "street, town and postcode (or use the DecisionTech component "
+               "fields: street1, city, postcode).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="customer_address")
-    if len(customer_address) > 500:
+    if len(customer_address) > 1000:
         msg = ("The field 'customer_address' is too long. "
-               "Please keep the postal address under 500 characters.")
+               "Please keep the postal address under 1000 characters.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="customer_address")
 
-    # ── 6. postage_method (case-insensitive, one of 'label' / 'postbag') ─────
-    postage_normalized = body.postage_method.strip().lower()
-    if postage_normalized not in ("label", "postbag"):
-        msg = (f"The value '{body.postage_method}' is not a valid postage_method. "
-               f"Please use either 'label' (we email a prepaid postage label) "
-               f"or 'postbag' (we post a Royal Mail Tracked postbag to the customer).")
+    # ── 6. postage_method (case-insensitive; DecisionTech-friendly) ──────────
+    # Accepts: 'label', 'postbag', 'Freepost postbag', 'freepost', 'royal mail',
+    # 'tracked'… anything that mentions postbag/pack normalises to 'postbag',
+    # anything that mentions label/print normalises to 'label'.
+    postage_raw = (body.postage_method or "").strip().lower()
+    if any(t in postage_raw for t in ("postbag", "post bag", "freepost", "pack", "send pack")):
+        postage_normalized = "postbag"
+    elif any(t in postage_raw for t in ("label", "print", "self post", "self-post")):
+        postage_normalized = "label"
+    elif postage_raw in ("label", "postbag"):
+        postage_normalized = postage_raw
+    else:
+        msg = (f"The value '{body.postage_method}' is not a recognised postage_method. "
+               f"Please use 'label' (we email a prepaid postage label) "
+               f"or 'postbag' (we post a Freepost postbag to the customer). "
+               f"DecisionTech 'Freepost postbag' is also accepted.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="postage_method")
 
-    # ── 7. device_grade (case-insensitive + common synonyms) ─────────────────
-    grade_raw = body.device_grade.strip().upper()
-    grade_synonyms = {
-        "NEW": "NEW", "MINT": "NEW", "EXCELLENT": "NEW", "AS_NEW": "NEW", "LIKE_NEW": "NEW",
-        "GOOD": "GOOD", "WORKING": "GOOD", "USED": "GOOD", "FAIR": "GOOD", "AVERAGE": "GOOD",
-        "BROKEN": "BROKEN", "FAULTY": "BROKEN", "DAMAGED": "BROKEN", "POOR": "BROKEN", "BAD": "BROKEN",
-    }
-    grade = grade_synonyms.get(grade_raw, grade_raw)
+    # ── 7. device_grade (numeric 0/1/2, case-insensitive strings, synonyms) ──
+    # DecisionTech DOP uses numeric codes: 0 = working (GOOD), 1 = broken
+    # (BROKEN), 2 = new (NEW). String variants and common synonyms are also
+    # accepted (e.g. "GOOD", "Working", "Mint", "Faulty").
+    grade = _coerce_grade(body.device_grade)
     if grade not in ("NEW", "GOOD", "BROKEN"):
-        msg = (f"The value '{body.device_grade}' is not a valid device_grade. "
-               f"Please use 'NEW' (perfect or near-perfect condition), "
-               f"'GOOD' (fully working with minor wear) "
-               f"or 'BROKEN' (cracked screen or hardware faults).")
+        msg = (f"The value '{body.device_grade}' is not a recognised device_grade. "
+               f"Please use one of: 'NEW' / 2 (perfect or near-perfect condition), "
+               f"'GOOD' / 0 (fully working with minor wear), "
+               f"or 'BROKEN' / 1 (cracked screen or hardware faults). "
+               f"DecisionTech numeric codes (0=working, 1=broken, 2=new) are also accepted.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="device_grade")
 
     # ── 8. offered_price ─────────────────────────────────────────────────────
@@ -419,30 +683,56 @@ async def create_external_order(
                "Please send a positive numeric value in GBP, e.g. 655.00 "
                "(currency symbols and thousand separators are allowed).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="offered_price")
     if body.offered_price <= 0:
         msg = (f"The value '{body.offered_price}' is not a valid offered_price. "
                f"The offered price must be greater than zero (in GBP).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="offered_price")
-    if body.offered_price > 5000:
+    if body.offered_price > 10000:
         msg = (f"The value '{body.offered_price}' is unusually high for a mobile device. "
-               f"Please double-check the offered_price (we cap quotes at £5,000 GBP).")
+               f"Please double-check the offered_price (we cap quotes at £10,000 GBP).")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="offered_price")
 
-    # ── 9. Optional banking fields — validate format when provided ───────────
+    # ── 9. Payment method (bank / cheque / paypal) ───────────────────────────
+    payment_method_raw = (body.payment_method or "").strip().lower()
+    if payment_method_raw and payment_method_raw not in ("bank", "cheque", "check", "paypal"):
+        msg = (f"The value '{body.payment_method}' is not a recognised payment_method. "
+               f"Please use 'bank', 'cheque' or 'paypal'.")
+        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                               partner_name, payload=raw_payload)
+        return _err(422, msg, field="payment_method")
+    payment_method_canonical = {"check": "cheque"}.get(payment_method_raw, payment_method_raw) or "bank"
+
+    # ── 9a. PayPal payment requires paypal_email ─────────────────────────────
+    if payment_method_canonical == "paypal":
+        if not body.paypal_email or not body.paypal_email.strip():
+            msg = ("The field 'paypal_email' is required when payment_method is 'paypal'. "
+                   "Please provide the customer's PayPal email address.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner_name, payload=raw_payload)
+            return _err(422, msg, field="paypal_email")
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", body.paypal_email.strip()):
+            msg = ("The field 'paypal_email' is not a valid email address. "
+                   "Please provide the customer's PayPal address in the format "
+                   "'name@example.com'.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner_name, payload=raw_payload)
+            return _err(422, msg, field="paypal_email")
+
+    # ── 9b. Optional banking fields — validate format when provided ──────────
     if body.sort_code:
         sc = body.sort_code.strip()
         sc_digits = re.sub(r"\D", "", sc)
         if len(sc_digits) != 6:
             msg = (f"The value '{body.sort_code}' is not a valid UK sort code. "
-                   f"Please provide a 6-digit sort code in the format '20-00-00'.")
+                   f"Please provide a 6-digit sort code (e.g. '20-00-00' or '200000').")
             await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                                   partner.name, payload=raw_payload)
+                                   partner_name, payload=raw_payload)
             return _err(422, msg, field="sort_code")
 
     if body.account_number:
@@ -451,39 +741,40 @@ async def create_external_order(
             msg = ("The field 'account_number' is not a valid UK bank account number. "
                    "Please provide an 8-digit account number (digits only).")
             await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                                   partner.name, payload=raw_payload)
+                                   partner_name, payload=raw_payload)
             return _err(422, msg, field="account_number")
 
     if body.bank_name and len(body.bank_name.strip()) > 100:
         msg = ("The field 'bank_name' is too long. "
                "Please keep the bank name under 100 characters.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="bank_name")
 
-    # If any banking field is given, encourage the full set to avoid payout delays
-    bank_fields_present = [bool(body.bank_name), bool(body.account_number), bool(body.sort_code)]
-    if any(bank_fields_present) and not all(bank_fields_present):
-        missing_bank = []
-        if not body.bank_name:      missing_bank.append("bank_name")
-        if not body.account_number: missing_bank.append("account_number")
-        if not body.sort_code:      missing_bank.append("sort_code")
-        msg = ("Partial bank details were provided. "
-               f"To process payment we need all three of bank_name, account_number "
-               f"and sort_code. Missing: {', '.join(missing_bank)}.")
-        await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
-        return _err(422, msg, field="payout_details", errors=[
-            {"field": f, "message": f"'{f}' is required when any bank field is supplied."}
-            for f in missing_bank
-        ])
+    # 9c. Partial bank details are only flagged when payment_method is 'bank'
+    # (DecisionTech bank flows don't always include the bank_name string).
+    if payment_method_canonical == "bank":
+        if (body.account_number or body.sort_code) and not (body.account_number and body.sort_code):
+            missing_bank = []
+            if not body.account_number: missing_bank.append("account_number (bank_account_number)")
+            if not body.sort_code:      missing_bank.append("sort_code (bank_sort_code)")
+            msg = ("Partial bank details were provided. "
+                   "To pay the customer by bank transfer we need BOTH a sort_code "
+                   "and an account_number. "
+                   f"Missing: {', '.join(missing_bank)}.")
+            await _log_api_request(request, 422, False, None, msg, _ms(start_time),
+                                   partner_name, payload=raw_payload)
+            return _err(422, msg, field="payout_details", errors=[
+                {"field": f.split(' ')[0], "message": f"'{f}' is required for bank payment."}
+                for f in missing_bank
+            ])
 
     # ── 10. transaction_id length sanity ─────────────────────────────────────
     if body.transaction_id and len(body.transaction_id) > 128:
         msg = ("The field 'transaction_id' is too long. "
                "Please keep your internal reference under 128 characters.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="transaction_id")
 
     # ── 11. Look up device (exact → partial → fuzzy) ─────────────────────────
@@ -529,26 +820,42 @@ async def create_external_order(
                f"Please provide the exact device name as listed on cashmymobile.co.uk "
                f"(for example, 'Apple iPhone 16 Pro Max' or 'Samsung Galaxy S24 Ultra').")
         await _log_api_request(request, 404, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(404, msg, field="device_name")
 
-    # ── 12. network: must be one of the supported carriers ──────────────────
+    # ── 12. network: support our list + DecisionTech's wider set ─────────────
+    # CashMyMobile carriers + DecisionTech additions (Orange/Tmobile/Virgin/Other).
+    # Orange & T-Mobile UK both became EE; we normalise them. 'Other' falls back
+    # to 'Unlocked' so the order isn't rejected for an unknown carrier.
     supported_networks = ["Unlocked", "EE", "O2", "Vodafone", "Three",
                           "Virgin Mobile", "Tesco Mobile", "Giffgaff"]
-    network_lookup = {n.lower(): n for n in supported_networks}
+    network_aliases = {
+        "unlocked": "Unlocked", "sim free": "Unlocked", "sim-free": "Unlocked", "open": "Unlocked",
+        "ee": "EE", "ee mobile": "EE",
+        "orange": "EE", "orange uk": "EE",
+        "tmobile": "EE", "t mobile": "EE", "t-mobile": "EE", "tmobile uk": "EE",
+        "o2": "O2", "o2 uk": "O2",
+        "vodafone": "Vodafone", "vodaphone": "Vodafone", "voda": "Vodafone",
+        "three": "Three", "3": "Three", "three uk": "Three",
+        "virgin mobile": "Virgin Mobile", "virgin": "Virgin Mobile",
+        "tesco mobile": "Tesco Mobile", "tesco": "Tesco Mobile",
+        "giffgaff": "Giffgaff", "giff gaff": "Giffgaff", "giff-gaff": "Giffgaff",
+        "other": "Unlocked", "unknown": "Unlocked", "any": "Unlocked",
+    }
     network_lc = body.network.strip().lower()
-    canonical_network = network_lookup.get(network_lc)
+    canonical_network = network_aliases.get(network_lc)
     if not canonical_network:
-        # Try a more forgiving match (e.g. "vodaphone", "ee mobile")
-        for low, canon in network_lookup.items():
-            if low in network_lc or network_lc in low:
+        # Forgiving partial match
+        for low, canon in network_aliases.items():
+            if low and (low in network_lc or network_lc in low):
                 canonical_network = canon
                 break
     if not canonical_network:
-        msg = (f"The value '{body.network}' is not a supported network. "
-               f"Please use one of: {', '.join(supported_networks)}.")
+        msg = (f"The value '{body.network}' is not a recognised network. "
+               f"Please use one of: {', '.join(supported_networks)}. "
+               f"DecisionTech values (Orange, Tmobile, Virgin, Other) are also accepted.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(422, msg, field="network")
 
     # ── 13. storage: must be one of the supported capacities (when present) ─
@@ -562,7 +869,7 @@ async def create_external_order(
             msg = (f"The value '{body.storage}' is not a supported storage capacity. "
                    f"Please use one of: {', '.join(supported_storage)}.")
             await _log_api_request(request, 422, False, None, msg, _ms(start_time),
-                                   partner.name, payload=raw_payload)
+                                   partner_name, payload=raw_payload)
             return _err(422, msg, field="storage")
 
     # ── 14. Validate network/storage pricing combo if storage provided ───────
@@ -610,7 +917,7 @@ async def create_external_order(
                    f"storage='{canonical_storage}' is not available for "
                    f"'{body.device_name}'.{hint}")
             await _log_api_request(request, 400, False, None, msg, _ms(start_time),
-                                   partner.name, payload=raw_payload)
+                                   partner_name, payload=raw_payload)
             return _err(400, msg, field="network/storage")
 
     # Use the canonical values from here on
@@ -621,8 +928,28 @@ async def create_external_order(
     body.customer_name = customer_name
     body.customer_address = customer_address
 
+    # Build a human-readable admin note from the DecisionTech fault fields
+    # so the admin order page surfaces them without needing schema changes.
+    fault_note_parts = []
+    if body.device_cracked_display and body.device_cracked_display.strip().lower() not in ("", "false", "0", "no"):
+        fault_note_parts.append(f"Cracked display: {body.device_cracked_display.strip()}")
+    if body.device_other_faults and body.device_other_faults.strip().lower() not in ("", "false", "0", "no"):
+        fault_note_parts.append(f"Other faults: {body.device_other_faults.strip()}")
+    if body.device_single_button_fault and body.device_single_button_fault.strip().lower() not in ("", "false", "0", "no"):
+        fault_note_parts.append(f"Single button fault: {body.device_single_button_fault.strip()}")
+    if payment_method_canonical == "paypal" and body.paypal_email:
+        fault_note_parts.append(f"PayPal email: {body.paypal_email.strip()}")
+    elif payment_method_canonical == "cheque":
+        fault_note_parts.append("Payment by cheque")
+    admin_notes_value = " | ".join(fault_note_parts) if fault_note_parts else None
+
     # ── 7. Create order ──────────────────────────────────────────────────────
     order_number = await generate_unique_order_number()
+
+    # Map DOP payment_method → our PaymentMethod enum (currently only BANK is
+    # defined). We persist the raw 'bank'/'cheque'/'paypal' value too so admin
+    # reports reflect the actual chosen method, but the enum check stays happy.
+    payment_method_value = PaymentMethod.BANK  # placeholder; only enum supported now
 
     from app.models.order import PayoutDetails, CounterOfferEmbed
     try:
@@ -642,22 +969,25 @@ async def create_external_order(
             storage=body.storage or "Unknown",
             offered_price=float(body.offered_price),
             postage_method=postage_normalized,
-            payment_method=PaymentMethod.BANK,
+            payment_method=payment_method_value,
             payment_status=PaymentStatus.PENDING,
             payout_details=PayoutDetails(
-                account_name=body.bank_name or "",
+                account_name=body.bank_name or (
+                    body.paypal_email or "" if payment_method_canonical == "paypal" else ""
+                ),
                 account_number=body.account_number or "",
                 sort_code=body.sort_code or "",
             ),
             transaction_id=body.transaction_id or "",
-            partner_name=partner.name,
+            partner_name=partner_name,
+            admin_notes=admin_notes_value,
             counter_offer=CounterOfferEmbed(),
         )
         await order.insert()
     except Exception as e:
         logger.exception(f"Failed to persist gateway order: {e}")
         await _log_api_request(request, 500, False, None, str(e), _ms(start_time),
-                               partner.name, payload=raw_payload)
+                               partner_name, payload=raw_payload)
         return _err(
             500,
             "An internal error occurred while saving the order. "
@@ -665,12 +995,13 @@ async def create_external_order(
             "if the problem persists.",
         )
 
-    # ── 8. Increment partner order count ─────────────────────────────────────
-    try:
-        partner.total_orders += 1
-        await partner.save()
-    except Exception:
-        pass
+    # ── 8. Increment partner order count (best-effort) ───────────────────────
+    if partner is not None:
+        try:
+            partner.total_orders += 1
+            await partner.save()
+        except Exception:
+            pass
 
     # ── 9. Send confirmation email ───────────────────────────────────────────
     if body.customer_email:
@@ -680,18 +1011,24 @@ async def create_external_order(
             logger.warning(f"Order confirmation email failed for {order.order_number}: {e}")
 
     # ── 10. Log successful request ───────────────────────────────────────────
-    await _log_api_request(request, 201, True, order.order_number, None, _ms(start_time),
-                           partner.name, payload=raw_payload)
-    logger.info(f"API Order created: {order.order_number} by partner {partner.name}")
+    await _log_api_request(request, 200, True, order.order_number, None, _ms(start_time),
+                           partner_name, payload=raw_payload)
+    logger.info(f"API Order created: {order.order_number} by partner {partner_name}")
 
+    # DecisionTech DOP spec: return HTTP 200 with an order_id field at the top
+    # level of the response body. We additionally include our existing keys for
+    # backward compatibility with partners already integrated against them.
     return JSONResponse(
-        status_code=201,
+        status_code=200,
         content={
             "success": True,
+            "order_id": order.order_number,
             "orderNumber": order.order_number,
+            "orderId": order.order_number,
             "message": "Order created successfully",
             "order": {
                 "id": str(order.id),
+                "order_id": order.order_number,
                 "orderNumber": order.order_number,
                 "status": order.status,
                 "createdAt": order.created_at.isoformat(),
@@ -703,9 +1040,9 @@ async def create_external_order(
 @router.post("/orders", summary="Create order via partner API")
 async def create_gateway_order(
     request: Request,
-    partner=Depends(get_current_partner),
+    x_partner_key: Optional[str] = Header(None),
 ):
-    return await create_external_order(request, partner)
+    return await create_external_order(request, x_partner_key)
 
 
 @router.get("/test", summary="Test API Gateway (GET)")
