@@ -34,56 +34,19 @@ _DECISIONTECH_IPS = {
 _DEFAULT_DOP_PARTNER_NAME = "DecisionTech / MoneySupermarket"
 
 
-async def _resolve_partner_optional(
-    request: Request,
-    x_partner_key: Optional[str],
-) -> tuple:
-    """Return (partner_or_none, partner_name_for_log).
+async def _get_or_create_default_dop_partner() -> Optional[Partner]:
+    """Lookup-or-create the catch-all 'DecisionTech / MoneySupermarket' partner.
 
-    • If X-Partner-Key is supplied, validate it strictly (401 on bad key).
-    • If absent, allow the request through and attribute it to a default
-      'DecisionTech / MoneySupermarket' partner (matching the DOP spec which
-      does NOT require an API key). Auto-creates that partner row on first use
-      so admin reporting / filtering keeps working.
+    Used to attribute orders that arrive without a valid X-Partner-Key so they
+    still appear in admin reporting under a sensible name.
     """
-    if x_partner_key:
-        # Strict validation — bad key still rejected
-        if not x_partner_key.startswith("cmm_pk_"):
-            raise HTTPException(
-                status_code=401,
-                detail=(
-                    "Authentication failed: the partner API key format is invalid. "
-                    "Keys must begin with 'cmm_pk_'."
-                ),
-            )
-        active_partners = await Partner.find(Partner.is_active == True).to_list()
-        matched = next(
-            (p for p in active_partners if Partner.verify_key(x_partner_key, p.key_hash)),
-            None,
-        )
-        if not matched:
-            raise HTTPException(
-                status_code=401,
-                detail=(
-                    "Authentication failed: the partner API key is either invalid, "
-                    "revoked, or belongs to a disabled partner account."
-                ),
-            )
-        try:
-            matched.last_used_at = datetime.utcnow()
-            await matched.save()
-        except Exception:
-            pass
-        return matched, matched.name
-
-    # No key — fall back to the DecisionTech default partner
     name = _DEFAULT_DOP_PARTNER_NAME
     try:
         partner = await Partner.find_one(Partner.name == name)
         if not partner:
             partner = Partner(
                 name=name,
-                key_hash="",  # no key — auth-less attribution only
+                key_hash="",
                 key_prefix="dop_",
                 is_active=True,
                 notes="Auto-created for DecisionTech DOP traffic (no X-Partner-Key required).",
@@ -91,10 +54,65 @@ async def _resolve_partner_optional(
             await partner.insert()
         partner.last_used_at = datetime.utcnow()
         await partner.save()
-        return partner, partner.name
+        return partner
     except Exception as e:
         logger.warning(f"Could not resolve default DOP partner: {e}")
-        return None, name
+        return None
+
+
+async def _resolve_partner_optional(
+    request: Request,
+    x_partner_key: Optional[str],
+) -> tuple:
+    """Return (partner_or_none, partner_name_for_log).
+
+    Auth is INTENTIONALLY non-rejecting. The endpoint is meant to accept every
+    well-formed order regardless of whether the partner sent an X-Partner-Key:
+
+      • Header present AND matches an active partner row
+            → use that partner (their orders appear under their own name).
+      • Header present but does NOT match (bad / revoked / unknown key)
+            → log a warning, accept the order anyway under the default
+              'DecisionTech / MoneySupermarket' partner. Never 401.
+      • Header absent
+            → accept the order under the default partner. Never 401.
+
+    This honours both the DecisionTech DOP spec ('No orders that are posted to
+    an endpoint should be rejected') and the brief 'I don't want any
+    restrictions' on this integration.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+
+    if x_partner_key:
+        # Try strict validation first — if it succeeds, use the matched partner.
+        if x_partner_key.startswith("cmm_pk_"):
+            try:
+                active_partners = await Partner.find(Partner.is_active == True).to_list()
+                matched = next(
+                    (p for p in active_partners if Partner.verify_key(x_partner_key, p.key_hash)),
+                    None,
+                )
+                if matched:
+                    try:
+                        matched.last_used_at = datetime.utcnow()
+                        await matched.save()
+                    except Exception:
+                        pass
+                    return matched, matched.name
+            except Exception as e:
+                logger.warning(f"Partner key lookup failed: {e}")
+
+        # Header present but did not match a partner — log and fall through.
+        prefix = x_partner_key[:11] + "..." if len(x_partner_key) > 11 else "(short)"
+        logger.warning(
+            f"Gateway: X-Partner-Key supplied but did not match any active "
+            f"partner — accepting anyway under default DOP partner "
+            f"(prefix={prefix}, ip={client_ip})"
+        )
+
+    # No key, or key didn't match — attribute to default DOP partner.
+    partner = await _get_or_create_default_dop_partner()
+    return partner, (partner.name if partner else _DEFAULT_DOP_PARTNER_NAME)
 
 
 # ── Field-name aliases ────────────────────────────────────────────────────────
