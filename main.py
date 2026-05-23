@@ -21,6 +21,55 @@ for d in ["logs", "uploads", "uploads/images", "uploads/csv", "exports"]:
     Path(d).mkdir(parents=True, exist_ok=True)
 
 
+async def _seed_workflow_statuses():
+    """Ensure the OrderStatus and PaymentStatus utility collections always
+    contain the canonical workflow values that backend code (order emails,
+    payment auto-flip, etc.) actually uses. The admin panel reads from these
+    collections to render the 'Update Order Status' modal — if they're empty
+    or contain unrelated entries, admins cannot move orders through the
+    workflow.
+
+    Idempotent: only inserts when a row with the same `value` is missing.
+    Existing custom rows are left untouched (admins can deactivate them via
+    the Utilities page if they want a clean list)."""
+    from app.models.order_status import OrderStatus
+    from app.models.payment_status import PaymentStatus
+
+    canonical_order_statuses = [
+        ("Received",            "RECEIVED",            "bg-blue-100 text-blue-700",       1),
+        ("Pack Sent",           "PACK_SENT",           "bg-indigo-100 text-indigo-700",   2),
+        ("Device Received",     "DEVICE_RECEIVED",     "bg-purple-100 text-purple-700",   3),
+        ("Inspection Passed",   "INSPECTION_PASSED",   "bg-emerald-100 text-emerald-700", 4),
+        ("Inspection Failed",   "INSPECTION_FAILED",   "bg-rose-100 text-rose-700",       5),
+        ("Price Revised",       "PRICE_REVISED",       "bg-amber-100 text-amber-700",     6),
+        ("Payout Ready",        "PAYOUT_READY",        "bg-teal-100 text-teal-700",       7),
+        ("Paid",                "PAID",                "bg-green-100 text-green-700",     8),
+        ("Closed",              "CLOSED",              "bg-gray-100 text-gray-700",       9),
+        ("Cancelled",           "CANCELLED",           "bg-red-100 text-red-700",        10),
+    ]
+    for name, value, color, sort_order in canonical_order_statuses:
+        existing = await OrderStatus.find_one(OrderStatus.value == value)
+        if not existing:
+            await OrderStatus(
+                name=name, value=value, color=color,
+                sort_order=sort_order, is_active=True,
+            ).insert()
+            logger.info(f"[Status seed] Created OrderStatus: {value}")
+
+    canonical_payment_statuses = [
+        ("Pending", "PENDING", "bg-amber-100 text-amber-700", 1),
+        ("Paid",    "PAID",    "bg-green-100 text-green-700", 2),
+    ]
+    for name, value, color, sort_order in canonical_payment_statuses:
+        existing = await PaymentStatus.find_one(PaymentStatus.value == value)
+        if not existing:
+            await PaymentStatus(
+                name=name, value=value, color=color,
+                sort_order=sort_order, is_active=True,
+            ).insert()
+            logger.info(f"[Status seed] Created PaymentStatus: {value}")
+
+
 async def _seed_admins():
     from app.models.admin import Admin
     from app.config.constants import AdminRole
@@ -53,6 +102,7 @@ async def lifespan(app: FastAPI):
     logger.info("=================================")
     await connect_db()
     await _seed_admins()
+    await _seed_workflow_statuses()
     yield
     await close_db()
     logger.info("Server shut down gracefully.")
@@ -164,6 +214,14 @@ if _frontend_dir.exists():
     app.mount("/static-frontend", StaticFiles(directory=str(_frontend_dir)), name="frontend-static")
 
 templates = Jinja2Templates(directory=str(_templates_dir))
+
+# Expose support contact details to every template so we can change them in
+# one place (settings.SUPPORT_PHONE / SUPPORT_EMAIL) without hunting through
+# the templates. Setting SUPPORT_PHONE to "" via env var hides every
+# click-to-call CTA across the public site (contact, footer, counter-offer,
+# complaint pages).
+templates.env.globals["support_phone"] = settings.SUPPORT_PHONE or ""
+templates.env.globals["support_email"] = settings.SUPPORT_EMAIL or "Support@cashmymobile.co.uk"
 
 
 # ── Shared helper ──────────────────────────────────────────────────────────

@@ -18,11 +18,32 @@ router = APIRouter(prefix="/contact", tags=["Contact"])
 
 @router.post("", summary="Submit contact form (public)")
 async def submit_contact(body: CreateContactSchema):
-    submission = ContactSubmission(**body.dict())
-    await submission.insert()
-    logger.info(f"Contact submission from {body.email}")
-    await send_contact_confirmation(submission)
-    return created_response({"message": "Message sent successfully"}, "Your message has been received")
+    try:
+        submission = ContactSubmission(**body.dict())
+        await submission.insert()
+        logger.info(f"Contact submission from {body.email}: subject='{body.subject}'")
+    except Exception as e:
+        logger.exception(f"Failed to save contact submission from {body.email}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "We could not save your message right now. "
+                "Please try again in a minute or email Support@cashmymobile.co.uk directly."
+            ),
+        )
+
+    # Confirmation email is best-effort — never fail the request if SES is down,
+    # because the message has already been captured in the database for admin
+    # follow-up.
+    try:
+        await send_contact_confirmation(submission)
+    except Exception as e:
+        logger.warning(f"Contact confirmation email failed for {body.email}: {e}")
+
+    return created_response(
+        {"message": "Message sent successfully"},
+        "Thanks for getting in touch — we've received your message and will reply within a few hours.",
+    )
 
 
 @router.get("", summary="Get all contact submissions", dependencies=[Depends(get_current_admin)])

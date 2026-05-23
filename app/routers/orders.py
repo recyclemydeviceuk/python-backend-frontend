@@ -147,26 +147,101 @@ async def update_order(order_id: str, body: UpdateOrderSchema):
     return success_response({"order": _serialize(order)}, "Order updated successfully")
 
 
+_LEGACY_STATUS_ALIASES = {
+    # Map legacy / human-readable names from older OrderStatus DB rows back to
+    # the canonical workflow values backend code (emails, payment flip) checks.
+    "pending":       "RECEIVED",
+    "received":      "RECEIVED",
+    "new":           "RECEIVED",
+    "collected":     "DEVICE_RECEIVED",
+    "received_device": "DEVICE_RECEIVED",
+    "confirmed":     "INSPECTION_PASSED",
+    "under review":  "INSPECTION_PASSED",
+    "under_review":  "INSPECTION_PASSED",
+    "reviewing":     "INSPECTION_PASSED",
+    "completed":     "PAID",
+    "paid":          "PAID",
+    "complete":      "PAID",
+    "cancelled":     "CANCELLED",
+    "canceled":      "CANCELLED",
+    "closed":        "CLOSED",
+    "pack sent":     "PACK_SENT",
+    "pack_sent":     "PACK_SENT",
+    "payout ready":  "PAYOUT_READY",
+    "payout_ready":  "PAYOUT_READY",
+    "price revised": "PRICE_REVISED",
+    "price_revised": "PRICE_REVISED",
+    "inspection passed": "INSPECTION_PASSED",
+    "inspection failed": "INSPECTION_FAILED",
+}
+
+
+def _normalize_status(raw: str) -> str:
+    """Accept any of the historical status names and return the canonical
+    workflow value backend code expects."""
+    if not raw:
+        return raw
+    s = str(raw).strip()
+    if s.upper() in {
+        "RECEIVED", "PACK_SENT", "DEVICE_RECEIVED", "INSPECTION_PASSED",
+        "INSPECTION_FAILED", "PRICE_REVISED", "PAYOUT_READY",
+        "PAID", "CLOSED", "CANCELLED",
+    }:
+        return s.upper()
+    return _LEGACY_STATUS_ALIASES.get(s.lower(), s)
+
+
 @router.patch("/{order_id}/status", summary="Update order status", dependencies=[Depends(get_current_admin)])
 async def update_status(order_id: str, body: UpdateOrderStatusSchema):
     order = await Order.get(order_id)
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No order was found with id '{order_id}'.",
+        )
 
+    if not body.status or not str(body.status).strip():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The field 'status' is required and cannot be empty. "
+                "Please choose one of: Received, Pack Sent, Device Received, "
+                "Inspection Passed, Inspection Failed, Price Revised, "
+                "Payout Ready, Paid, Closed, Cancelled."
+            ),
+        )
+
+    new_status = _normalize_status(body.status)
     old_status = order.status
-    order.status = body.status
-    order.payment_status = PaymentStatus.PAID if body.status == "PAID" else PaymentStatus.PENDING
+    order.status = new_status
+    order.payment_status = (
+        PaymentStatus.PAID if new_status == "PAID" else PaymentStatus.PENDING
+    )
     order.updated_at = datetime.utcnow()
-    await order.save()
+    try:
+        await order.save()
+    except Exception as e:
+        logger.exception(f"Failed to save status for order {order.order_number}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Failed to update the order. Please try again — if the problem "
+                "persists, contact the developer."
+            ),
+        )
 
-    if body.status == "PAID":
-        await send_order_completion_email(order)
-        await send_payment_confirmation(order)
-    else:
-        await send_order_status_update(order, old_status)
+    # Emails are best-effort. Never fail the API just because SES is down.
+    try:
+        if new_status == "PAID":
+            await send_order_completion_email(order)
+            await send_payment_confirmation(order)
+        elif old_status != new_status:
+            await send_order_status_update(order, old_status)
+    except Exception as e:
+        logger.warning(f"Status email failed for {order.order_number}: {e}")
 
-    logger.info(f"Order status: {order.order_number} {old_status} -> {body.status}")
-    return success_response({"order": _serialize(order)}, "Order status updated")
+    logger.info(f"Order status: {order.order_number} {old_status} -> {new_status}")
+    return success_response({"order": _serialize(order)}, "Order status updated successfully.")
 
 
 @router.delete("/{order_id}", summary="Delete order", dependencies=[Depends(get_current_admin)])

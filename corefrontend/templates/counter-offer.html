@@ -123,7 +123,7 @@
               Decline &amp; Return My Device
             </button>
           </div>
-          <p style="font-size:.75rem;color:#9ca3af;text-align:center;margin-top:1rem;">Questions? Call us on <a href="tel:03333356679" style="color:#dc2626;font-weight:600;">03333356679</a> or email <a href="mailto:Support@cashmymobile.co.uk" style="color:#dc2626;font-weight:600;">Support@cashmymobile.co.uk</a></p>
+          <p style="font-size:.75rem;color:#9ca3af;text-align:center;margin-top:1rem;">Questions? {% if support_phone %}Call us on <a href="tel:{{ support_phone }}" style="color:#dc2626;font-weight:600;">{{ support_phone }}</a> or e{% else %}E{% endif %}mail <a href="mailto:{{ support_email }}" style="color:#dc2626;font-weight:600;">{{ support_email }}</a></p>
         </div>
       `;
 

@@ -1,11 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 import secrets
-from app.models.counter_offer import CounterOffer
+from app.models.counter_offer import CounterOffer, DeviceImage
 from app.models.order import Order
 from app.schemas.counter_offer import CreateCounterOfferSchema, RespondCounterOfferSchema
 from app.middleware.auth import get_current_admin
-from app.services.email_service import send_counter_offer_email, send_counter_offer_accepted_email, send_counter_offer_declined_email
+from app.services.email_service import (
+    send_counter_offer_email,
+    send_counter_offer_accepted_email,
+    send_counter_offer_declined_email,
+)
 from app.config.constants import CounterOfferStatus, PaymentStatus
 from app.utils.response import success_response, created_response
 from app.utils.logger import logger
@@ -13,103 +18,204 @@ from app.utils.logger import logger
 router = APIRouter(prefix="/counter-offers", tags=["Counter Offers"])
 
 
+def _err(status: int, message: str, field: Optional[str] = None):
+    """Consistent JSON error body the admin panel can parse."""
+    detail = {"success": False, "error": message, "message": message}
+    if field:
+        detail["field"] = field
+    raise HTTPException(status_code=status, detail=detail)
+
+
 @router.post("", summary="Create counter offer", dependencies=[Depends(get_current_admin)])
 async def create_counter_offer(body: CreateCounterOfferSchema):
-    order = await Order.get(body.order_id)
+    # ── Validate input ──────────────────────────────────────────────────
+    if not body.order_id:
+        _err(422,
+             "The field 'order_id' is required to create a counter offer.",
+             field="order_id")
+
+    if body.revised_price is None:
+        _err(422,
+             "The field 'revised_price' is required and must be a positive number.",
+             field="revised_price")
+
+    if body.revised_price < 0:
+        _err(422,
+             "The 'revised_price' must be zero or greater.",
+             field="revised_price")
+
+    if not body.reason or not body.reason.strip():
+        _err(422,
+             "The field 'reason' is required — please explain why the price has been adjusted.",
+             field="reason")
+
+    if len(body.reason.strip()) < 20:
+        _err(422,
+             "The 'reason' must be at least 20 characters so the customer understands the adjustment.",
+             field="reason")
+
+    # ── Load order ──────────────────────────────────────────────────────
+    try:
+        order = await Order.get(body.order_id)
+    except Exception:
+        order = None
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        _err(404,
+             f"No order was found with id '{body.order_id}'. "
+             f"Please verify the order ID and try again.",
+             field="order_id")
 
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
+    # ── Build counter offer using CORRECT model field names ─────────────
+    review_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=48)
 
-    offer = CounterOffer(
-        order_id=str(order.id),
-        order_number=order.order_number,
-        device_name=order.device_name,
-        customer_name=order.customer_name,
-        customer_email=order.customer_email,
-        original_price=order.offered_price,
-        counter_price=body.counter_price,
-        reason=body.reason,
-        token=token,
-        expires_at=expires_at,
-    )
-    await offer.insert()
+    device_image_objects = []
+    if body.device_images:
+        now = datetime.utcnow()
+        for img in body.device_images:
+            try:
+                url = img.get("url") if isinstance(img, dict) else None
+                key = img.get("key") if isinstance(img, dict) else None
+                if url and key:
+                    device_image_objects.append(DeviceImage(url=url, key=key, uploaded_at=now))
+            except Exception:
+                continue
 
-    # Update order
-    order.counter_offer.has_counter_offer = True
-    order.counter_offer.latest_offer_id = str(offer.id)
-    order.counter_offer.status = CounterOfferStatus.PENDING
-    await order.save()
+    try:
+        offer = CounterOffer(
+            order_id=str(order.id),
+            order_number=order.order_number,
+            original_price=float(order.offered_price or 0),
+            revised_price=float(body.revised_price),
+            reason=body.reason.strip(),
+            device_images=device_image_objects,
+            status=CounterOfferStatus.PENDING,
+            expires_at=expires_at,
+            review_token=review_token,
+        )
+        await offer.insert()
+    except Exception as e:
+        logger.exception(f"Failed to persist counter offer for order {order.order_number}: {e}")
+        _err(500,
+             "An internal error occurred while saving the counter offer. "
+             "Please retry — if the problem continues, contact the developer.")
 
+    # ── Update parent order ─────────────────────────────────────────────
+    try:
+        if not order.counter_offer:
+            from app.models.order import CounterOfferEmbed
+            order.counter_offer = CounterOfferEmbed()
+        order.counter_offer.has_counter_offer = True
+        order.counter_offer.latest_offer_id = str(offer.id)
+        order.counter_offer.status = CounterOfferStatus.PENDING
+        order.updated_at = datetime.utcnow()
+        await order.save()
+    except Exception as e:
+        logger.warning(f"Counter offer saved but parent order update failed: {e}")
+
+    # ── Email customer (best-effort, never block the response) ──────────
     if order.customer_email:
-        await send_counter_offer_email(order, offer)
+        try:
+            await send_counter_offer_email(order, offer)
+        except Exception as e:
+            logger.warning(f"Counter offer email failed for {order.order_number}: {e}")
 
-    logger.info(f"Counter offer created for order {order.order_number}")
-    return created_response({"counter_offer": _serialize(offer)}, "Counter offer created and email sent")
+    logger.info(f"Counter offer created for order {order.order_number}: £{offer.revised_price}")
+    return created_response(
+        {"counter_offer": _serialize(offer)},
+        "Counter offer created successfully and customer email has been sent.",
+    )
 
 
 @router.get("/token/{token}", summary="Get counter offer by token (public)")
 async def get_by_token(token: str):
-    offer = await CounterOffer.find_one(CounterOffer.token == token)
+    offer = await CounterOffer.find_one(CounterOffer.review_token == token)
     if not offer:
-        raise HTTPException(status_code=404, detail="Counter offer not found")
+        _err(404,
+             "This counter offer link is invalid or has expired. "
+             "Please contact support if you believe this is in error.")
     order = await Order.get(offer.order_id)
-    return success_response({"counter_offer": _serialize(offer), "order": _serialize_order(order) if order else None})
+    return success_response({
+        "counter_offer": _serialize(offer),
+        "order": _serialize_order(order) if order else None,
+    })
 
 
 @router.post("/token/{token}/accept", summary="Accept counter offer (public)")
 async def accept_offer(token: str):
-    offer = await CounterOffer.find_one(CounterOffer.token == token)
+    offer = await CounterOffer.find_one(CounterOffer.review_token == token)
     if not offer:
-        raise HTTPException(status_code=404, detail="Counter offer not found")
+        _err(404, "This counter offer link is invalid or has expired.")
     if offer.status != CounterOfferStatus.PENDING:
-        raise HTTPException(status_code=400, detail="This offer has already been responded to")
+        _err(400,
+             "This counter offer has already been responded to and cannot be changed.")
+    if offer.is_expired():
+        _err(400,
+             "This counter offer has expired (offers are valid for 48 hours). "
+             "Please contact support if you still wish to proceed.")
 
-    now = datetime.now(timezone.utc)
-    if offer.expires_at.replace(tzinfo=timezone.utc) < now:
-        raise HTTPException(status_code=400, detail="This offer has expired")
-
+    now = datetime.utcnow()
     offer.status = CounterOfferStatus.ACCEPTED
+    offer.customer_response = "ACCEPTED"
     offer.responded_at = now
+    offer.updated_at = now
     await offer.save()
 
     order = await Order.get(offer.order_id)
     if order:
-        order.final_price = offer.counter_price
-        order.counter_offer.status = CounterOfferStatus.ACCEPTED
+        order.final_price = offer.revised_price
+        if order.counter_offer:
+            order.counter_offer.status = CounterOfferStatus.ACCEPTED
         order.payment_status = PaymentStatus.PENDING
+        order.updated_at = now
         await order.save()
-        await send_counter_offer_accepted_email(order, offer)
+        try:
+            await send_counter_offer_accepted_email(order, offer)
+        except Exception as e:
+            logger.warning(f"Counter offer accepted email failed: {e}")
 
     logger.info(f"Counter offer accepted: {offer.order_number}")
-    return success_response({"message": "Counter offer accepted", "counter_offer": _serialize(offer)})
+    return success_response(
+        {"counter_offer": _serialize(offer)},
+        "Counter offer accepted successfully.",
+    )
 
 
-@router.post("/token/{token}/reject", summary="Reject counter offer (public)")
-async def reject_offer(token: str):
-    offer = await CounterOffer.find_one(CounterOffer.token == token)
+@router.post("/token/{token}/reject", summary="Decline counter offer (public)")
+async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = None):
+    offer = await CounterOffer.find_one(CounterOffer.review_token == token)
     if not offer:
-        raise HTTPException(status_code=404, detail="Counter offer not found")
+        _err(404, "This counter offer link is invalid or has expired.")
     if offer.status != CounterOfferStatus.PENDING:
-        raise HTTPException(status_code=400, detail="This offer has already been responded to")
+        _err(400, "This counter offer has already been responded to.")
+    if offer.is_expired():
+        _err(400, "This counter offer has expired.")
 
-    now = datetime.now(timezone.utc)
-    if offer.expires_at.replace(tzinfo=timezone.utc) < now:
-        raise HTTPException(status_code=400, detail="This offer has expired")
-
+    now = datetime.utcnow()
     offer.status = CounterOfferStatus.DECLINED
+    offer.customer_response = "DECLINED"
     offer.responded_at = now
+    offer.updated_at = now
+    if body and body.feedback:
+        offer.customer_feedback = body.feedback.strip()
     await offer.save()
 
     order = await Order.get(offer.order_id)
     if order:
-        order.counter_offer.status = CounterOfferStatus.DECLINED
+        if order.counter_offer:
+            order.counter_offer.status = CounterOfferStatus.DECLINED
+        order.updated_at = now
         await order.save()
-        await send_counter_offer_declined_email(order, offer)
+        try:
+            await send_counter_offer_declined_email(order, offer)
+        except Exception as e:
+            logger.warning(f"Counter offer declined email failed: {e}")
 
-    logger.info(f"Counter offer rejected: {offer.order_number}")
-    return success_response({"message": "Counter offer declined", "counter_offer": _serialize(offer)})
+    logger.info(f"Counter offer declined: {offer.order_number}")
+    return success_response(
+        {"counter_offer": _serialize(offer)},
+        "Counter offer declined.",
+    )
 
 
 @router.get("", summary="Get all counter offers", dependencies=[Depends(get_current_admin)])
@@ -121,27 +227,65 @@ async def get_all(status: str = None):
     return success_response({"counter_offers": [_serialize(o) for o in offers]})
 
 
-@router.get("/order/{order_id}/all", summary="Get all counter offers for an order", dependencies=[Depends(get_current_admin)])
+@router.get("/order/{order_id}", summary="Get latest counter offer for order",
+            dependencies=[Depends(get_current_admin)])
+async def get_latest_for_order(order_id: str):
+    """Used by the admin panel to display the current counter-offer status
+    on an order detail page."""
+    offer = await CounterOffer.find(
+        CounterOffer.order_id == order_id
+    ).sort(-CounterOffer.created_at).limit(1).to_list()
+    return success_response({
+        "counter_offer": _serialize(offer[0]) if offer else None,
+    })
+
+
+@router.get("/order/{order_id}/all", summary="Get all counter offers for an order",
+            dependencies=[Depends(get_current_admin)])
 async def get_order_counter_offers(order_id: str):
-    offers = await CounterOffer.find(CounterOffer.order_id == order_id).sort(-CounterOffer.created_at).to_list()
-    return success_response({"counterOffers": [_serialize(o) for o in offers], "counter_offers": [_serialize(o) for o in offers]})
+    offers = await CounterOffer.find(
+        CounterOffer.order_id == order_id
+    ).sort(-CounterOffer.created_at).to_list()
+    return success_response({
+        "counterOffers": [_serialize(o) for o in offers],
+        "counter_offers": [_serialize(o) for o in offers],
+    })
 
 
 def _serialize(o: CounterOffer) -> dict:
+    """Dual snake_case + camelCase shape so both the public web pages
+    (JS) and the React admin panel (TS) can consume the same response."""
     return {
         "id": str(o.id), "_id": str(o.id),
         "order_id": o.order_id, "orderId": o.order_id,
         "order_number": o.order_number, "orderNumber": o.order_number,
-        "device_name": o.device_name, "deviceName": o.device_name,
-        "customer_name": o.customer_name, "customerName": o.customer_name,
         "original_price": o.original_price, "originalPrice": o.original_price,
-        "counter_price": o.counter_price, "counterPrice": o.counter_price,
-        "reason": o.reason, "status": o.status,
-        "token": o.token,
+        "revised_price": o.revised_price, "revisedPrice": o.revised_price,
+        # Backwards-compat aliases for older clients that read counter_price/counterPrice:
+        "counter_price": o.revised_price, "counterPrice": o.revised_price,
+        "reason": o.reason,
+        "status": o.status,
+        "device_images": [
+            {"url": img.url, "key": img.key,
+             "uploaded_at": img.uploaded_at.isoformat(),
+             "uploadedAt": img.uploaded_at.isoformat()}
+            for img in (o.device_images or [])
+        ],
+        "deviceImages": [
+            {"url": img.url, "key": img.key,
+             "uploaded_at": img.uploaded_at.isoformat(),
+             "uploadedAt": img.uploaded_at.isoformat()}
+            for img in (o.device_images or [])
+        ],
+        "review_token": o.review_token, "reviewToken": o.review_token,
+        "token": o.review_token,  # backwards-compat
+        "customer_response": o.customer_response, "customerResponse": o.customer_response,
+        "customer_feedback": o.customer_feedback, "customerFeedback": o.customer_feedback,
         "expires_at": o.expires_at.isoformat(), "expiresAt": o.expires_at.isoformat(),
         "responded_at": o.responded_at.isoformat() if o.responded_at else None,
         "respondedAt": o.responded_at.isoformat() if o.responded_at else None,
         "created_at": o.created_at.isoformat(), "createdAt": o.created_at.isoformat(),
+        "updated_at": o.updated_at.isoformat(), "updatedAt": o.updated_at.isoformat(),
     }
 
 
@@ -151,6 +295,7 @@ def _serialize_order(o: Order) -> dict:
         "order_number": o.order_number, "orderNumber": o.order_number,
         "device_name": o.device_name, "deviceName": o.device_name,
         "customer_name": o.customer_name, "customerName": o.customer_name,
+        "customer_email": o.customer_email, "customerEmail": o.customer_email,
         "offered_price": o.offered_price, "offeredPrice": o.offered_price,
         "status": o.status,
     }

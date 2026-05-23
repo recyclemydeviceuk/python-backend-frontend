@@ -239,13 +239,13 @@ async def send_counter_offer_email(order, counter_offer) -> bool:
     try:
         from datetime import datetime
         template = _load_template("counterOfferReceived")
-        review_url = f"{settings.FRONTEND_URL.rstrip('/')}/counter-offer/?token={counter_offer.token}"
+        review_url = f"{settings.FRONTEND_URL.rstrip('/')}/counter-offer/?token={counter_offer.review_token}"
         expiry_date = counter_offer.expires_at.strftime("%d %B %Y")
         html = _replace_vars(template, {
             "customerName": order.customer_name,
             "orderNumber": order.order_number,
             "originalPrice": f"{order.offered_price:.2f}",
-            "revisedPrice": f"{counter_offer.counter_price:.2f}",
+            "revisedPrice": f"{counter_offer.revised_price:.2f}",
             "reason": counter_offer.reason or "",
             "reviewUrl": review_url,
             "expiryDate": expiry_date,
@@ -269,7 +269,7 @@ async def send_counter_offer_accepted_email(order, counter_offer) -> bool:
         html = _replace_vars(template, {
             "customerName": order.customer_name,
             "orderNumber": order.order_number,
-            "revisedPrice": f"{counter_offer.counter_price:.2f}",
+            "revisedPrice": f"{counter_offer.revised_price:.2f}",
             "supportEmail": EMAIL_DEFAULTS["support_email"],
         })
         return _send_email(order.customer_email, f"Counter Offer Accepted - Order #{order.order_number}", html)
@@ -286,7 +286,7 @@ async def send_counter_offer_declined_email(order, counter_offer) -> bool:
         html = _replace_vars(template, {
             "customerName": order.customer_name,
             "orderNumber": order.order_number,
-            "revisedPrice": f"{counter_offer.counter_price:.2f}",
+            "revisedPrice": f"{counter_offer.revised_price:.2f}",
             "supportEmail": EMAIL_DEFAULTS["support_email"],
         })
         return _send_email(order.customer_email, f"Counter Offer Declined - Order #{order.order_number}", html)

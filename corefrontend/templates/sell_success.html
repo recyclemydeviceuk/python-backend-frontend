@@ -97,7 +97,7 @@
   <!-- Security note -->
   <div style="display:flex;align-items:flex-start;gap:.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:1rem;padding:1rem;margin-bottom:1.25rem;">
     <svg style="width:1rem;height:1rem;color:#9ca3af;flex-shrink:0;margin-top:2px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    <p style="font-size:.75rem;color:#6b7280;line-height:1.5;">Your data is encrypted and your bank details are only used for this payment. Questions? Call <span style="color:#dc2626;font-weight:600;">03333356679</span></p>
+    <p style="font-size:.75rem;color:#6b7280;line-height:1.5;">Your data is encrypted and your bank details are only used for this payment. {% if support_phone %}Questions? Call <a href="tel:{{ support_phone }}" style="color:#dc2626;font-weight:600;text-decoration:none;">{{ support_phone }}</a>{% else %}Questions? Email <a href="mailto:{{ support_email }}" style="color:#dc2626;font-weight:600;text-decoration:none;">{{ support_email }}</a>{% endif %}</p>
   </div>
 
   <a href="/" style="display:flex;align-items:center;justify-content:center;width:100%;background:#dc2626;color:#fff;font-weight:700;padding:.875rem;border-radius:1rem;font-size:.9375rem;text-decoration:none;">

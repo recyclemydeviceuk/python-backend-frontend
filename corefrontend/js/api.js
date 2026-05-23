@@ -1,10 +1,9 @@
-const _isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const _isRender = window.location.hostname.endsWith('.onrender.com');
-const API_BASE = _isLocal
-  ? 'http://localhost:8000/api'
-  : _isRender
-    ? '/api'
-    : 'https://backend-cmm-m609.onrender.com/api';
+// The public website and the FastAPI backend are served from the same origin
+// (cashmymobile.co.uk on production, localhost:8000 in dev). Using a relative
+// '/api' URL keeps the contact form working everywhere without hard-coding
+// the deploy URL — that was the cause of the "Failed to fetch" error customers
+// were seeing on the contact page after the Render service URL changed.
+const API_BASE = '/api';
 
 
 async function apiFetch(path, options = {}) {
@@ -14,11 +13,22 @@ async function apiFetch(path, options = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   try {
     const res = await fetch(url, { ...options, headers });
-    const data = await res.json();
+    // Try to parse JSON; some 4xx errors may not include a body
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      data = { success: res.ok, message: res.statusText };
+    }
+    if (!res.ok && data.success === undefined) data.success = false;
     return data;
   } catch (err) {
     console.error(`API error [${path}]:`, err);
-    return { success: false, message: err.message || 'Network error' };
+    return {
+      success: false,
+      message: 'Could not reach the server. Please check your internet connection and try again.',
+      error: err.message || 'Network error',
+    };
   }
 }
 
