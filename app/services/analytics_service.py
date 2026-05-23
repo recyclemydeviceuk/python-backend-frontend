@@ -15,10 +15,11 @@ async def get_dashboard_stats() -> dict:
     orders_this_month = await Order.find(Order.created_at >= thirty_days_ago).count()
     orders_this_week = await Order.find(Order.created_at >= seven_days_ago).count()
 
-    from app.config.constants import OrderStatus
-    pending = await Order.find(Order.status == OrderStatus.RECEIVED).count()
-    completed = await Order.find(Order.status == OrderStatus.PAID).count()
-    cancelled = await Order.find(Order.status == OrderStatus.CANCELLED).count()
+    # Compare against the canonical .value strings (not the enum object) so
+    # the Mongo query matches what's actually stored on each order row.
+    pending = await Order.find(Order.status == "RECEIVED").count()
+    completed = await Order.find(Order.status == "PAID").count()
+    cancelled = await Order.find(Order.status == "CANCELLED").count()
 
     # Revenue
     pipeline = [

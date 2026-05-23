@@ -59,6 +59,25 @@ class Order(Document):
             return None
         return str(value)
 
+    @field_validator("status", "payment_status", mode="before")
+    @classmethod
+    def coerce_status_value(cls, value: Any) -> Any:
+        """Strip Python enum repr prefixes like 'OrderStatus.' or
+        'PaymentStatus.' that leaked into MongoDB on older Python versions
+        (str-Enum.__str__ returned the qualified name there). Without this
+        the admin panel can't match a saved 'OrderStatus.RECEIVED' against
+        its own status list."""
+        if value is None:
+            return value
+        s = str(value)
+        for prefix in ("OrderStatus.", "PaymentStatus.", "PostageMethod.",
+                       "PaymentMethod.", "OrderSource.", "DeviceGrade.",
+                       "CounterOfferStatus."):
+            if s.startswith(prefix):
+                s = s[len(prefix):]
+                break
+        return s
+
     class Settings:
         name = "orders"
         indexes = [

@@ -21,20 +21,129 @@ for d in ["logs", "uploads", "uploads/images", "uploads/csv", "exports"]:
     Path(d).mkdir(parents=True, exist_ok=True)
 
 
-async def _seed_workflow_statuses():
-    """Ensure the OrderStatus and PaymentStatus utility collections always
-    contain the canonical workflow values that backend code (order emails,
-    payment auto-flip, etc.) actually uses. The admin panel reads from these
-    collections to render the 'Update Order Status' modal — if they're empty
-    or contain unrelated entries, admins cannot move orders through the
-    workflow.
+# Mapping of every legacy / human-readable order status name (lower-cased)
+# to the canonical workflow value the backend uses for emails + payment flip.
+# Used by both the startup migration AND the legacy alias normalizer in
+# app/routers/orders.py — keep them in sync.
+_LEGACY_TO_CANONICAL_STATUS: dict = {
+    "pending":             "RECEIVED",
+    "received":            "RECEIVED",
+    "new":                 "RECEIVED",
+    "collected":           "DEVICE_RECEIVED",
+    "received_device":     "DEVICE_RECEIVED",
+    "device received":     "DEVICE_RECEIVED",
+    "device_received":     "DEVICE_RECEIVED",
+    "confirmed":           "INSPECTION_PASSED",
+    "under review":        "INSPECTION_PASSED",
+    "under_review":        "INSPECTION_PASSED",
+    "reviewing":           "INSPECTION_PASSED",
+    "inspection passed":   "INSPECTION_PASSED",
+    "inspection_passed":   "INSPECTION_PASSED",
+    "inspection failed":   "INSPECTION_FAILED",
+    "inspection_failed":   "INSPECTION_FAILED",
+    "completed":           "PAID",
+    "complete":            "PAID",
+    "paid":                "PAID",
+    "cancelled":           "CANCELLED",
+    "canceled":            "CANCELLED",
+    "closed":              "CLOSED",
+    "pack sent":           "PACK_SENT",
+    "pack_sent":           "PACK_SENT",
+    "payout ready":        "PAYOUT_READY",
+    "payout_ready":        "PAYOUT_READY",
+    "price revised":       "PRICE_REVISED",
+    "price_revised":       "PRICE_REVISED",
+    # Counter-offer leftover from an earlier admin path
+    "counter_offered":     "PRICE_REVISED",
+    "counter offered":     "PRICE_REVISED",
+}
 
-    Idempotent: only inserts when a row with the same `value` is missing.
-    Existing custom rows are left untouched (admins can deactivate them via
-    the Utilities page if they want a clean list)."""
+
+def _clean_status_string(raw) -> str:
+    """Strip Python enum repr prefixes ('OrderStatus.RECEIVED' -> 'RECEIVED')
+    AND map any legacy human-readable name back to the canonical value."""
+    if raw is None:
+        return ""
+    s = str(raw).strip()
+    for prefix in ("OrderStatus.", "PaymentStatus.", "PostageMethod.",
+                   "PaymentMethod.", "OrderSource.", "DeviceGrade.",
+                   "CounterOfferStatus."):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
+    canonical = {"RECEIVED", "PACK_SENT", "DEVICE_RECEIVED", "INSPECTION_PASSED",
+                 "INSPECTION_FAILED", "PRICE_REVISED", "PAYOUT_READY", "PAID",
+                 "CLOSED", "CANCELLED"}
+    if s.upper() in canonical:
+        return s.upper()
+    return _LEGACY_TO_CANONICAL_STATUS.get(s.lower(), s)
+
+
+async def _seed_workflow_statuses():
+    """End-to-end status migration. Runs on every startup, idempotent.
+
+    1. CLEAN: any order whose `status` is a Python enum repr like
+       'OrderStatus.RECEIVED' or a legacy name like 'Confirmed' is rewritten
+       to the canonical workflow value (RECEIVED / INSPECTION_PASSED / etc.).
+       Same treatment for payment_status.
+    2. PRUNE: legacy OrderStatus rows ('Pending', 'Confirmed', 'Collected',
+       'Under Review', 'Completed', etc.) are deleted so the admin Order
+       Progress timeline only shows the canonical 10-step workflow.
+    3. SEED: canonical OrderStatus + PaymentStatus rows are upserted with
+       proper colours and sort order, so the React admin panel renders a
+       clean, ordered, clickable progress bar.
+    """
+    from app.models.order import Order
     from app.models.order_status import OrderStatus
     from app.models.payment_status import PaymentStatus
 
+    # ── 1. CLEAN existing order rows ───────────────────────────────────
+    orders_coll = Order.get_motor_collection()
+    cleaned = 0
+    cursor = orders_coll.find({"status": {"$exists": True}})
+    async for doc in cursor:
+        raw_status = doc.get("status")
+        raw_pay = doc.get("payment_status") or doc.get("paymentStatus")
+        new_status = _clean_status_string(raw_status) if raw_status else raw_status
+        new_pay = _clean_status_string(raw_pay) if raw_pay else raw_pay
+        updates = {}
+        if new_status and new_status != raw_status:
+            updates["status"] = new_status
+        if new_pay and new_pay != raw_pay:
+            updates["payment_status"] = new_pay
+        if updates:
+            await orders_coll.update_one({"_id": doc["_id"]}, {"$set": updates})
+            cleaned += 1
+    if cleaned:
+        logger.info(f"[Status migration] Cleaned status on {cleaned} order row(s)")
+
+    # ── 2. PRUNE legacy OrderStatus rows ───────────────────────────────
+    canonical_values = {
+        "RECEIVED", "PACK_SENT", "DEVICE_RECEIVED", "INSPECTION_PASSED",
+        "INSPECTION_FAILED", "PRICE_REVISED", "PAYOUT_READY", "PAID",
+        "CLOSED", "CANCELLED",
+    }
+    existing_rows = await OrderStatus.find().to_list()
+    removed = 0
+    for row in existing_rows:
+        row_value = (row.value or "").strip().upper()
+        # Delete anything that isn't a canonical workflow value
+        if row_value not in canonical_values:
+            await row.delete()
+            removed += 1
+    if removed:
+        logger.info(f"[Status migration] Removed {removed} legacy OrderStatus row(s)")
+
+    # Also dedupe canonical rows (in case a previous seed inserted twice)
+    by_value: dict = {}
+    for row in await OrderStatus.find().to_list():
+        v = (row.value or "").strip().upper()
+        if v in by_value:
+            await row.delete()
+        else:
+            by_value[v] = row
+
+    # ── 3. SEED canonical OrderStatus rows (upsert) ────────────────────
     canonical_order_statuses = [
         ("Received",            "RECEIVED",            "bg-blue-100 text-blue-700",       1),
         ("Pack Sent",           "PACK_SENT",           "bg-indigo-100 text-indigo-700",   2),
@@ -55,6 +164,19 @@ async def _seed_workflow_statuses():
                 sort_order=sort_order, is_active=True,
             ).insert()
             logger.info(f"[Status seed] Created OrderStatus: {value}")
+        else:
+            # Keep name / colour / sort_order aligned with code on every boot
+            existing.name = name
+            existing.color = color
+            existing.sort_order = sort_order
+            existing.is_active = True
+            await existing.save()
+
+    # ── 4. PRUNE + SEED PaymentStatus collection ───────────────────────
+    canonical_pay_values = {"PENDING", "PAID"}
+    for row in await PaymentStatus.find().to_list():
+        if (row.value or "").strip().upper() not in canonical_pay_values:
+            await row.delete()
 
     canonical_payment_statuses = [
         ("Pending", "PENDING", "bg-amber-100 text-amber-700", 1),
@@ -68,6 +190,12 @@ async def _seed_workflow_statuses():
                 sort_order=sort_order, is_active=True,
             ).insert()
             logger.info(f"[Status seed] Created PaymentStatus: {value}")
+        else:
+            existing.name = name
+            existing.color = color
+            existing.sort_order = sort_order
+            existing.is_active = True
+            await existing.save()
 
 
 async def _seed_admins():

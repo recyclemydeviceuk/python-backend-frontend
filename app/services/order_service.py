@@ -25,10 +25,11 @@ async def get_price_for_order(device_id: str, network: str, storage: str, grade:
 async def get_order_stats() -> dict:
     """Aggregate basic order statistics."""
     total = await Order.count()
-    from app.config.constants import OrderStatus, PaymentStatus
-    pending = await Order.find(Order.status == OrderStatus.RECEIVED).count()
-    completed = await Order.find(Order.status == OrderStatus.PAID).count()
-    cancelled = await Order.find(Order.status == OrderStatus.CANCELLED).count()
+    # Compare against the .value string (not the enum object) so the
+    # MongoDB query matches the canonical string stored on each row.
+    pending = await Order.find(Order.status == "RECEIVED").count()
+    completed = await Order.find(Order.status == "PAID").count()
+    cancelled = await Order.find(Order.status == "CANCELLED").count()
 
     pipeline = [{"$group": {"_id": None, "total": {"$sum": "$offered_price"}}}]
     result = await Order.aggregate(pipeline).to_list()

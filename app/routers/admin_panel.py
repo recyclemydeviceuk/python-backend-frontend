@@ -415,11 +415,14 @@ async def admin_order_status(request: Request, order_id: str, status: str = Form
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from app.models.order import Order
+    from app.routers.orders import _normalize_status
     from fastapi.responses import JSONResponse
     order = await Order.get(order_id)
     if order:
-        order.status = status
-        if status in ['COMPLETED', 'PAID']:
+        # Normalize legacy / display names ('Completed', 'Confirmed') to the
+        # canonical workflow value before saving.
+        order.status = _normalize_status(status)
+        if order.status == 'PAID':
             order.payment_status = 'PAID'
         order.updated_at = datetime.utcnow()
         await order.save()
@@ -466,7 +469,10 @@ async def admin_counter_offer_post(request: Request, order_id: str,
     if order:
         order.final_price = counter_price
         order.notes = reason
-        order.status = "COUNTER_OFFERED"
+        # Use canonical PRICE_REVISED workflow value (was non-standard
+        # 'COUNTER_OFFERED' which broke admin status timeline matching).
+        order.status = "PRICE_REVISED"
+        order.price_revision_reason = reason
         order.updated_at = datetime.utcnow()
         await order.save()
 
