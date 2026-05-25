@@ -220,6 +220,54 @@ async def _seed_admins():
                 logger.info(f"[Admin seed] Already exists: {email}")
 
 
+async def _migrate_pricing_hierarchy():
+    """Ensure every Pricing row has NEW >= GOOD >= BROKEN.
+
+    Legacy CSV imports sometimes wrote the three grade columns in random
+    order, producing rows where the 'gradeNew' column actually held the
+    broken-grade price (etc.). Customer-facing pages would then show
+    'New / Excellent £240, Good £455, Broken £852' which is plainly wrong.
+
+    This migration is conservative:
+      • Only rewrites a row when ALL three grade columns are non-zero AND
+        the values are not already in descending order — that's the only
+        case where the correct ordering is unambiguous.
+      • Writes back BOTH camelCase and snake_case keys to keep every legacy
+        reader in sync.
+
+    Idempotent — already-correct rows are skipped. Safe to run on every
+    boot.
+    """
+    from app.models.pricing import Pricing
+    coll = Pricing.get_motor_collection()
+    fixed = 0
+    cursor = coll.find({})
+    async for doc in cursor:
+        new    = float(doc.get("gradeNew")    or doc.get("grade_new")    or 0)
+        good   = float(doc.get("gradeGood")   or doc.get("grade_good")   or 0)
+        broken = float(doc.get("gradeBroken") or doc.get("grade_broken") or 0)
+        if new <= 0 or good <= 0 or broken <= 0:
+            continue  # can't unambiguously sort a partial row
+        already_sorted = (new >= good >= broken)
+        if already_sorted:
+            continue
+        sorted_prices = sorted([new, good, broken], reverse=True)
+        await coll.update_one(
+            {"_id": doc["_id"]},
+            {"$set": {
+                "gradeNew":    sorted_prices[0],
+                "gradeGood":   sorted_prices[1],
+                "gradeBroken": sorted_prices[2],
+                "grade_new":    sorted_prices[0],
+                "grade_good":   sorted_prices[1],
+                "grade_broken": sorted_prices[2],
+            }},
+        )
+        fixed += 1
+    if fixed:
+        logger.info(f"[Pricing migration] Reordered {fixed} pricing row(s) to NEW >= GOOD >= BROKEN")
+
+
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -231,6 +279,7 @@ async def lifespan(app: FastAPI):
     await connect_db()
     await _seed_admins()
     await _seed_workflow_statuses()
+    await _migrate_pricing_hierarchy()
     yield
     await close_db()
     logger.info("Server shut down gracefully.")
@@ -548,33 +597,41 @@ async def sell_condition(request: Request, device_id: str, device_name: str, sto
     raw_good = float(price_row.get("gradeGood") or price_row.get("grade_good") or 0)
     raw_broken = float(price_row.get("gradeBroken") or price_row.get("grade_broken") or 0)
 
-    # Pick a "good-equivalent" anchor for derivation when grade columns are
-    # missing or all duplicated (e.g. the CSV import populated all three with
-    # the same value).
-    if raw_good > 0:
-        good_anchor = raw_good
-    elif raw_new > 0:
-        good_anchor = raw_new / 1.15
-    elif raw_broken > 0:
-        good_anchor = raw_broken / 0.4
-    else:
-        good_anchor = 0
+    # ── ENFORCE PRICE HIERARCHY: NEW >= GOOD >= BROKEN ─────────────────────
+    # We can't trust which DB column holds which grade because legacy CSV
+    # imports occasionally wrote them swapped (gradeNew column holding the
+    # broken-grade price, etc.). To guarantee the customer always sees a
+    # correct hierarchy on the condition page, we sort the three values
+    # descending and reassign: highest -> NEW, middle -> GOOD, lowest -> BROKEN.
+    non_zero_prices = sorted([p for p in (raw_new, raw_good, raw_broken) if p > 0],
+                              reverse=True)
 
-    distinct_grades = {p for p in (raw_new, raw_good, raw_broken) if p > 0}
-    if len(distinct_grades) >= 2:
-        # DB has differentiated per-grade pricing — trust it, derive any missing
+    if len(non_zero_prices) >= 3:
+        # All three columns have a value — sort descending so hierarchy is correct.
         derived = {
-            "NEW":    raw_new    if raw_new    > 0 else round(good_anchor * 1.15),
-            "GOOD":   raw_good   if raw_good   > 0 else round(good_anchor),
-            "BROKEN": raw_broken if raw_broken > 0 else round(good_anchor * 0.4),
+            "NEW":    round(non_zero_prices[0]),
+            "GOOD":   round(non_zero_prices[1]),
+            "BROKEN": round(non_zero_prices[2]),
+        }
+    elif len(non_zero_prices) == 2:
+        # Two columns set — treat highest as NEW, lower as GOOD, derive BROKEN
+        # using the standard 0.4× ratio against GOOD.
+        derived = {
+            "NEW":    round(non_zero_prices[0]),
+            "GOOD":   round(non_zero_prices[1]),
+            "BROKEN": round(non_zero_prices[1] * 0.4),
+        }
+    elif len(non_zero_prices) == 1:
+        # Only one column set — use it as the GOOD anchor and derive the
+        # other two using standard buyback ratios.
+        anchor = non_zero_prices[0]
+        derived = {
+            "NEW":    round(anchor * 1.15),
+            "GOOD":   round(anchor),
+            "BROKEN": round(anchor * 0.4),
         }
     else:
-        # All three are zero or all three are the same value → derive from anchor
-        derived = {
-            "NEW":    round(good_anchor * 1.15),
-            "GOOD":   round(good_anchor),
-            "BROKEN": round(good_anchor * 0.4),
-        }
+        derived = {"NEW": 0, "GOOD": 0, "BROKEN": 0}
 
     # Always offer all three grades — use DeviceCondition entries only as
     # optional name/description overrides keyed by NEW/GOOD/BROKEN.
