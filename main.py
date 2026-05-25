@@ -352,19 +352,62 @@ templates.env.globals["support_phone"] = settings.SUPPORT_PHONE or ""
 templates.env.globals["support_email"] = settings.SUPPORT_EMAIL or "Support@cashmymobile.co.uk"
 
 
-# ── Shared helper ──────────────────────────────────────────────────────────
+# ── Shared helpers ─────────────────────────────────────────────────────────
+def _pricing_query_for_device(device_id: str) -> dict:
+    """Build a MongoDB `$or` filter that matches a pricing row's device_id
+    regardless of which field-name convention or value-type was used when
+    the row was inserted.
+
+    Beanie's Pricing model has `device_id` with alias `deviceId` — so some
+    rows in the DB carry `device_id` (snake), some `deviceId` (camel), and
+    the value may be either a stringified ObjectId or an actual ObjectId.
+    Querying only `{"deviceId": ObjectId(...)}` (the previous code) missed
+    every row inserted via the CSV importer or via `device_id` snake case,
+    which is why the public sell flow showed "No storage options available"
+    for every device.
+    """
+    from bson import ObjectId
+    sid = str(device_id)
+    or_clauses = [{"device_id": sid}, {"deviceId": sid}]
+    try:
+        oid = ObjectId(sid)
+        or_clauses.extend([{"device_id": oid}, {"deviceId": oid}])
+    except Exception:
+        pass
+    return {"$or": or_clauses}
+
+
+async def _pricing_for_device(device_id: str, extra_filters: Optional[dict] = None) -> list:
+    """Fetch raw pricing rows for a device, tolerating every legacy field
+    naming convention. `extra_filters` may be e.g. {"storage": "256GB"}."""
+    from app.models.pricing import Pricing
+    query: dict = _pricing_query_for_device(device_id)
+    if extra_filters:
+        query = {"$and": [query, extra_filters]}
+    return await Pricing.get_motor_collection().find(query).to_list(length=None)
+
+
 async def _get_devices_with_prices():
     from app.models.device import Device
     from app.models.pricing import Pricing
     devices = await Device.find(Device.is_active == True).sort(-Device.created_at).to_list()
-    all_pricing = await Pricing.find().to_list()
+    # Read from the raw collection so we handle every legacy field naming
+    # convention (deviceId vs device_id, gradeNew vs grade_new, etc.) that
+    # the various CSV importers wrote at different times.
+    pricing_coll = Pricing.get_motor_collection()
+    all_pricing = await pricing_coll.find({}).to_list(length=None)
     max_prices: dict = {}
     for p in all_pricing:
-        did = str(p.device_id) if p.device_id else None
-        if did:
-            price = max(p.grade_new or 0, p.grade_good or 0, p.grade_broken or 0)
-            if price > max_prices.get(did, 0):
-                max_prices[did] = price
+        raw_did = p.get("deviceId") or p.get("device_id")
+        if not raw_did:
+            continue
+        did = str(raw_did)
+        new_price = float(p.get("gradeNew") or p.get("grade_new") or 0)
+        good_price = float(p.get("gradeGood") or p.get("grade_good") or 0)
+        broken_price = float(p.get("gradeBroken") or p.get("grade_broken") or 0)
+        price = max(new_price, good_price, broken_price)
+        if price > max_prices.get(did, 0):
+            max_prices[did] = price
     devices_data = []
     for d in devices:
         did = str(d.id)
@@ -457,13 +500,7 @@ async def sell(request: Request, brand: str = "all", q: str = ""):
 # ── Multi-page sell flow (no-JS) ────────────────────────────────────────────────────
 @app.get("/sell/storage", tags=["Frontend"])
 async def sell_storage(request: Request, device_id: str, device_name: str):
-    from app.models.pricing import Pricing
-    from bson import ObjectId
-    try:
-        oid = ObjectId(device_id)
-    except Exception:
-        oid = device_id
-    pricing_docs = await Pricing.get_motor_collection().find({"deviceId": oid}).to_list(length=None)
+    pricing_docs = await _pricing_for_device(device_id)
     storage_set = sorted(set(p["storage"] for p in pricing_docs if p.get("storage")),
                          key=lambda v: int("".join(filter(str.isdigit, v)) or "0") * (1024 if "tb" in v.lower() else 1))
     storage_max = {}
@@ -482,13 +519,7 @@ async def sell_storage(request: Request, device_id: str, device_name: str):
 
 @app.get("/sell/network", tags=["Frontend"])
 async def sell_network(request: Request, device_id: str, device_name: str, storage: str):
-    from app.models.pricing import Pricing
-    from bson import ObjectId
-    try:
-        oid = ObjectId(device_id)
-    except Exception:
-        oid = device_id
-    pricing_docs = await Pricing.get_motor_collection().find({"deviceId": oid, "storage": storage}).to_list(length=None)
+    pricing_docs = await _pricing_for_device(device_id, {"storage": storage})
     network_set = sorted(set(p["network"] for p in pricing_docs if p.get("network")))
     network_max = {}
     for p in pricing_docs:
@@ -506,16 +537,10 @@ async def sell_network(request: Request, device_id: str, device_name: str, stora
 
 @app.get("/sell/condition", tags=["Frontend"])
 async def sell_condition(request: Request, device_id: str, device_name: str, storage: str, network: str):
-    from app.models.pricing import Pricing
     from app.models.device_condition import DeviceCondition
-    from bson import ObjectId
-    try:
-        oid = ObjectId(device_id)
-    except Exception:
-        oid = device_id
-    pricing_docs = await Pricing.get_motor_collection().find(
-        {"deviceId": oid, "storage": storage, "network": network}
-    ).to_list(length=None)
+    pricing_docs = await _pricing_for_device(
+        device_id, {"storage": storage, "network": network}
+    )
     price_row = pricing_docs[0] if pricing_docs else {}
 
     # Read stored grade prices (support both camelCase aliases and snake_case)
