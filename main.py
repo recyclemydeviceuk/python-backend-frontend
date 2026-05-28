@@ -262,6 +262,77 @@ def _compute_hierarchy(raw_new: float, raw_good: float, raw_broken: float) -> Op
     return None
 
 
+async def _seed_device_conditions():
+    """Force the DeviceCondition collection to hold EXACTLY the three
+    canonical conditions the customer-facing site uses, in the right
+    sort-order so the admin pricing grid columns line up with the public
+    condition page:
+
+        sort_order=1  ->  name='New / Excellent'   value='NEW'
+        sort_order=2  ->  name='Good'              value='GOOD'
+        sort_order=3  ->  name='Broken / Faulty'   value='BROKEN'
+
+    Why:
+      Legacy seed data left the collection with rows like
+      [Broken, Poor, Good]. Combined with the AdminPricing.tsx bug that
+      mapped each condition column to gradeNew/gradeGood/gradeBroken by
+      sort-order index, the admin entering "Broken=160" actually wrote
+      gradeNew=160 — flipping the entire MSP feed so it showed
+      NEW=160, BROKEN=695 (totally inverted).
+
+      Once these three canonical rows exist with the right sort_order AND
+      the AdminPricing column→field mapping is moved to name-based
+      (separate commit on the admin panel), the admin grid columns match
+      the customer-facing labels exactly and the feed exposes the right
+      hierarchy.
+
+    Idempotent. Safe to run on every boot.
+    """
+    from app.models.device_condition import DeviceCondition
+
+    canonical = [
+        ("NEW",    "New / Excellent", "Perfect or near-perfect condition.", 1),
+        ("GOOD",   "Good",            "Fully working with minor wear.",    2),
+        ("BROKEN", "Broken / Faulty", "Cracked screen or hardware faults.", 3),
+    ]
+    canonical_values = {v for v, _, _, _ in canonical}
+
+    # 1. Remove every legacy row (e.g. 'Poor', 'Mint', 'Used') so admins
+    #    never see them in the pricing grid again.
+    removed = 0
+    for row in await DeviceCondition.find().to_list():
+        if (row.value or "").strip().upper() not in canonical_values:
+            await row.delete()
+            removed += 1
+    if removed:
+        logger.info(f"[DeviceCondition seed] Removed {removed} legacy condition row(s)")
+
+    # 2. Deduplicate canonical rows (a previous seed may have inserted twice)
+    seen: dict = {}
+    for row in await DeviceCondition.find().to_list():
+        v = (row.value or "").strip().upper()
+        if v in seen:
+            await row.delete()
+        else:
+            seen[v] = row
+
+    # 3. Upsert the canonical rows with the right name, description and sort_order
+    for value, name, description, sort_order in canonical:
+        existing = await DeviceCondition.find_one(DeviceCondition.value == value)
+        if not existing:
+            await DeviceCondition(
+                name=name, value=value, description=description,
+                sort_order=sort_order, is_active=True,
+            ).insert()
+            logger.info(f"[DeviceCondition seed] Created: {value} ({name})")
+        else:
+            existing.name = name
+            existing.description = description
+            existing.sort_order = sort_order
+            existing.is_active = True
+            await existing.save()
+
+
 async def _migrate_pricing_hierarchy() -> dict:
     """Rewrite every Pricing row so gradeNew >= gradeGood >= gradeBroken.
 
@@ -351,6 +422,7 @@ async def lifespan(app: FastAPI):
     await connect_db()
     await _seed_admins()
     await _seed_workflow_statuses()
+    await _seed_device_conditions()
     await _migrate_pricing_hierarchy()
     yield
     await close_db()
