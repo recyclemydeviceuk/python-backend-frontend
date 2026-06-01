@@ -1,10 +1,13 @@
 import base64
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+import httpx
 from typing import Optional, Union
 from pathlib import Path
-from app.config.aws import get_ses_client, SES_FROM, SES_FROM_EMAIL, SES_REPLY_TO
+from app.config.aws import (
+    BREVO_FROM_EMAIL,
+    BREVO_FROM_NAME,
+    BREVO_REPLY_TO,
+    BREVO_API_URL,
+)
 from app.config.email_config import EMAIL_DEFAULTS, EMAIL_TEMPLATES, ORDER_STATUS_MESSAGES
 from app.config.settings import settings
 from app.utils.logger import logger
@@ -29,63 +32,92 @@ def _load_template(template_name: str) -> str:
         return "<p>{{message}}</p>"
 
 
-def _send_email(to: Union[str, list], subject: str, html: str, text: str = None) -> bool:
-    """Send email via AWS SES SendEmail."""
-    try:
-        client = get_ses_client()
-        to_list = to if isinstance(to, list) else [to]
-        params = {
-            "Source": SES_FROM,
-            "Destination": {"ToAddresses": to_list},
-            "Message": {
-                "Subject": {"Data": subject, "Charset": "UTF-8"},
-                "Body": {"Html": {"Data": html, "Charset": "UTF-8"}},
-            },
-            "ReplyToAddresses": [SES_REPLY_TO],
-        }
-        if text:
-            params["Message"]["Body"]["Text"] = {"Data": text, "Charset": "UTF-8"}
-
-        result = client.send_email(**params)
-        logger.info(f"Email sent to {to}: {subject} | MessageId: {result['MessageId']}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send email to {to}: {e}")
-        return False
-
-
-def _send_raw_email(to: Union[str, list], subject: str, html: str, pdf_buffer: bytes = None, pdf_filename: str = None) -> bool:
-    """Send email with optional PDF attachment via AWS SES SendRawEmail."""
-    try:
-        client = get_ses_client()
-        to_list = to if isinstance(to, list) else [to]
-
-        msg = MIMEMultipart("mixed")
-        msg["From"] = SES_FROM
-        msg["To"] = ", ".join(to_list)
-        msg["Subject"] = subject
-
-        # HTML body
-        body_part = MIMEMultipart("alternative")
-        body_part.attach(MIMEText(html, "html", "utf-8"))
-        msg.attach(body_part)
-
-        # PDF attachment
-        if pdf_buffer and pdf_filename:
-            attachment = MIMEApplication(pdf_buffer, _subtype="pdf")
-            attachment.add_header("Content-Disposition", "attachment", filename=pdf_filename)
-            msg.attach(attachment)
-
-        result = client.send_raw_email(
-            Source=SES_FROM_EMAIL,
-            Destinations=to_list,
-            RawMessage={"Data": msg.as_bytes()},
+def _brevo_send(
+    to_list: list,
+    subject: str,
+    html: str,
+    text: Optional[str] = None,
+    attachments: Optional[list] = None,
+) -> bool:
+    """POST to Brevo's transactional email API.
+    Returns True on a 2xx response, False on any failure — callers treat
+    email as best-effort and never propagate the error back to the user."""
+    api_key = settings.BREVO_API_KEY
+    if not api_key:
+        logger.error(
+            "BREVO_API_KEY is not configured — cannot send email "
+            f"to {to_list}: {subject!r}"
         )
-        logger.info(f"Raw email sent to {to}: {subject} | MessageId: {result['MessageId']}")
+        return False
+
+    payload = {
+        "sender": {"name": BREVO_FROM_NAME, "email": BREVO_FROM_EMAIL},
+        "to": [{"email": e} for e in to_list],
+        "subject": subject,
+        "htmlContent": html,
+        "replyTo": {"email": BREVO_REPLY_TO},
+    }
+    if text:
+        payload["textContent"] = text
+    if attachments:
+        payload["attachment"] = attachments
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                BREVO_API_URL,
+                json=payload,
+                headers={
+                    "api-key": api_key,
+                    "accept": "application/json",
+                    "content-type": "application/json",
+                },
+            )
+        if response.status_code >= 300:
+            logger.error(
+                f"Brevo rejected email to {to_list} ({response.status_code}): "
+                f"{response.text[:500]}"
+            )
+            return False
+        message_id = ""
+        try:
+            message_id = response.json().get("messageId", "")
+        except Exception:
+            pass
+        logger.info(
+            f"Email sent to {to_list}: {subject} | Brevo MessageId: {message_id}"
+        )
         return True
     except Exception as e:
-        logger.error(f"Failed to send raw email to {to}: {e}")
+        logger.error(f"Failed to send email to {to_list} via Brevo: {e}")
         return False
+
+
+def _send_email(to: Union[str, list], subject: str, html: str, text: str = None) -> bool:
+    """Send a plain HTML email via Brevo. Same signature as before so every
+    caller keeps working — only the underlying transport changed."""
+    to_list = to if isinstance(to, list) else [to]
+    return _brevo_send(to_list, subject, html, text=text)
+
+
+def _send_raw_email(
+    to: Union[str, list],
+    subject: str,
+    html: str,
+    pdf_buffer: bytes = None,
+    pdf_filename: str = None,
+) -> bool:
+    """Send an HTML email with an optional PDF attachment via Brevo.
+    Brevo accepts attachments as base64-encoded blobs in the JSON body,
+    so we encode here and pass through to the shared sender."""
+    to_list = to if isinstance(to, list) else [to]
+    attachments = None
+    if pdf_buffer and pdf_filename:
+        attachments = [{
+            "name": pdf_filename,
+            "content": base64.b64encode(pdf_buffer).decode("ascii"),
+        }]
+    return _brevo_send(to_list, subject, html, attachments=attachments)
 
 
 async def send_otp_email(email: str, otp_code: str) -> bool:

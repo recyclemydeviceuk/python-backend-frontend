@@ -2,16 +2,6 @@ import boto3
 from app.config.settings import settings
 
 
-def get_ses_client():
-    """AWS SES client using general AWS credentials."""
-    return boto3.client(
-        "ses",
-        region_name=settings.AWS_REGION,
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-    )
-
-
 def get_s3_client():
     """AWS S3 client using dedicated S3 credentials (fallback to general)."""
     return boto3.client(
@@ -31,8 +21,13 @@ S3_FOLDERS = {
     "exports": "exports/",
 }
 
-# SES config
-SES_FROM_EMAIL = settings.AWS_SES_FROM_EMAIL
-SES_FROM_NAME = settings.AWS_SES_FROM_NAME
-SES_FROM = f"{SES_FROM_NAME} <{SES_FROM_EMAIL}>"
-SES_REPLY_TO = settings.AWS_SES_VERIFIED_EMAIL or "Support@cashmymobile.co.uk"
+
+# ── Brevo (transactional email) ───────────────────────────────────────────────
+# Email delivery moved from AWS SES to Brevo. The constants below mirror the
+# old SES_* names so the rest of the codebase keeps working with a one-line
+# import change. The reply-to falls back to the support inbox so customer
+# replies don't bounce.
+BREVO_FROM_EMAIL = settings.FROM_EMAIL_Brevo
+BREVO_FROM_NAME = settings.FROM_NAME_Brevo
+BREVO_REPLY_TO = settings.SUPPORT_EMAIL or BREVO_FROM_EMAIL
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"

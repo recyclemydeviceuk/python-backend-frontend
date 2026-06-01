@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
 
-    # AWS SES
+    # Brevo (transactional email provider — replaces AWS SES)
+    BREVO_API_KEY: Optional[str] = None
+    FROM_EMAIL_Brevo: str = "noreply@cashmymobile.co.uk"
+    FROM_NAME_Brevo: str = "Cash My Mobile"
+
+    # AWS SES (deprecated — kept so existing .env files don't break loading)
     AWS_SES_FROM_EMAIL: str = "noreply@cashmymobile.co.uk"
     AWS_SES_FROM_NAME: str = "Cash My Mobile"
     AWS_SES_VERIFIED_EMAIL: Optional[str] = None
