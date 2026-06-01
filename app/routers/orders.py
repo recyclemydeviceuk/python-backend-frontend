@@ -59,16 +59,59 @@ async def get_all_orders(
         docs.sort(key=lambda doc: _sort_value(doc, requested_sort), reverse=reverse)
 
         total = len(docs)
+
+        # Fetch the most-recent counter offer per order in ONE batch so the
+        # orders list can show the revised price + customer response inline.
+        # Previously the admin only saw it on the detail page after acceptance.
+        order_ids = [
+            str(d.get("_id") or d.get("id"))
+            for d in docs if d.get("_id") or d.get("id")
+        ]
+        latest_offers = await _fetch_latest_counter_offers(order_ids)
+
         if limit is None:
-            return success_response([_serialize_raw(o) for o in docs])
+            return success_response([
+                _serialize_raw(o, latest_offers.get(str(o.get("_id") or o.get("id"))))
+                for o in docs
+            ])
 
         skip = (page - 1) * limit
         paged_docs = docs[skip:skip + limit]
 
-        return paginated_response([_serialize_raw(o) for o in paged_docs], page, limit, total)
+        return paginated_response(
+            [
+                _serialize_raw(o, latest_offers.get(str(o.get("_id") or o.get("id"))))
+                for o in paged_docs
+            ],
+            page, limit, total,
+        )
     except Exception as e:
         logger.exception(f"Failed to get orders list: {e}")
         raise HTTPException(status_code=500, detail="Failed to load orders")
+
+
+async def _fetch_latest_counter_offers(order_ids: list) -> dict:
+    """Return {order_id: latest counter offer dict} for the given ids.
+    Looks up the offers collection directly (avoids round-trip per row).
+    Best-effort: any failure returns an empty map and orders still render."""
+    if not order_ids:
+        return {}
+    try:
+        from app.models.counter_offer import CounterOffer
+        coll = CounterOffer.get_motor_collection()
+        cursor = coll.find(
+            {"order_id": {"$in": order_ids}},
+        ).sort("created_at", -1)
+        rows = await cursor.to_list(length=None)
+        latest: dict = {}
+        for r in rows:
+            oid = r.get("order_id")
+            if oid and oid not in latest:
+                latest[oid] = r
+        return latest
+    except Exception as e:
+        logger.warning(f"Failed to fetch latest counter offers: {e}")
+        return {}
 
 
 @router.get("/{order_id}", summary="Get order by ID", dependencies=[Depends(get_current_admin)])
@@ -76,7 +119,10 @@ async def get_order(order_id: str):
     order = await Order.get(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return success_response({"order": _serialize(order)})
+    latest_offers = await _fetch_latest_counter_offers([str(order.id)])
+    return success_response({
+        "order": _serialize(order, latest_offers.get(str(order.id))),
+    })
 
 
 @router.post("", summary="Create order (public)")
@@ -105,8 +151,10 @@ async def update_order(order_id: str, body: UpdateOrderSchema):
     old_status = order.status
     old_final_price = order.final_price or order.offered_price
 
+    normalized_new_status = None
     if body.status is not None:
-        order.status = body.status
+        normalized_new_status = _normalize_status(str(body.status))
+        order.status = normalized_new_status
     if body.final_price is not None:
         order.final_price = body.final_price
     if body.price_revision_reason is not None:
@@ -124,11 +172,14 @@ async def update_order(order_id: str, body: UpdateOrderSchema):
     if body.notes is not None:
         order.notes = body.notes
 
-    # Auto payment status
-    if body.status and body.status == "PAID":
-        order.payment_status = PaymentStatus.PAID
-    elif body.status:
-        order.payment_status = PaymentStatus.PENDING
+    # Auto payment status — only override if the caller did NOT pass an
+    # explicit payment_status. Use the normalized status so "Paid"/"paid"
+    # both flip the payment column correctly.
+    if normalized_new_status and body.payment_status is None:
+        if normalized_new_status == "PAID":
+            order.payment_status = PaymentStatus.PAID
+        else:
+            order.payment_status = PaymentStatus.PENDING
 
     order.updated_at = datetime.utcnow()
     await order.save()
@@ -248,8 +299,34 @@ async def update_status(order_id: str, body: UpdateOrderStatusSchema):
 async def delete_order(order_id: str):
     order = await Order.get(order_id)
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    await order.delete()
+        # Idempotent: deleting an already-deleted order should not 404 from
+        # the admin panel's perspective. The user kept hitting this when
+        # rapid-clicking delete on a stale list.
+        logger.info(f"Delete called on missing order_id={order_id} (no-op)")
+        return success_response({"message": "Order already removed"})
+
+    # Cascade-delete any counter offers tied to this order so the orders
+    # collection doesn't accumulate orphaned offer rows for deleted/test
+    # data. Best-effort — if it fails, still delete the order so the user
+    # can actually clear their list.
+    try:
+        from app.models.counter_offer import CounterOffer
+        await CounterOffer.find(CounterOffer.order_id == str(order.id)).delete()
+    except Exception as e:
+        logger.warning(f"Failed to cascade-delete counter offers for {order.order_number}: {e}")
+
+    try:
+        await order.delete()
+    except Exception as e:
+        logger.exception(f"Failed to delete order {order.order_number}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Failed to delete the order. Please try again — if the "
+                "problem continues, contact the developer."
+            ),
+        )
+
     logger.info(f"Order deleted: {order.order_number}")
     return success_response({"message": "Order deleted successfully"})
 
@@ -321,12 +398,28 @@ def _sort_value(doc: dict, requested_sort: str):
     return str(raw).lower()
 
 
-def _serialize_raw(doc: dict) -> dict:
+def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
     doc = _to_json_safe(doc)
     payout = _raw_value(doc, "payout_details", "payoutDetails") or {}
     counter = _raw_value(doc, "counter_offer", "counterOffer") or {}
     created_at = _raw_value(doc, "created_at", "createdAt")
     updated_at = _raw_value(doc, "updated_at", "updatedAt")
+
+    # Surface the latest counter offer's revised price so the admin orders
+    # list can show it next to the £ Offered column. Without this, the
+    # main page only ever showed the original quote — admins had to open
+    # each order to know the revised amount.
+    offer_revised_price = None
+    offer_status = None
+    offer_responded_at = None
+    offer_reason = None
+    if latest_offer:
+        offer_revised_price = latest_offer.get("revised_price")
+        offer_status = latest_offer.get("status")
+        offer_responded_at = latest_offer.get("responded_at")
+        if isinstance(offer_responded_at, datetime):
+            offer_responded_at = offer_responded_at.isoformat()
+        offer_reason = latest_offer.get("reason")
     return {
         "id": str(doc.get("_id") or doc.get("id")), "_id": str(doc.get("_id") or doc.get("id")),
         "order_number": _raw_value(doc, "order_number", "orderNumber") or "", "orderNumber": _raw_value(doc, "order_number", "orderNumber") or "",
@@ -353,10 +446,20 @@ def _serialize_raw(doc: dict) -> dict:
             "sort_code": _raw_value(payout, "sort_code", "sortCode"), "sortCode": _raw_value(payout, "sort_code", "sortCode"),
         } if payout else None,
         "counter_offer": {
-            "has_counter_offer": _raw_value(counter, "has_counter_offer", "hasCounterOffer") or False, "hasCounterOffer": _raw_value(counter, "has_counter_offer", "hasCounterOffer") or False,
+            "has_counter_offer": (
+                _raw_value(counter, "has_counter_offer", "hasCounterOffer")
+                or bool(latest_offer) or False
+            ),
+            "hasCounterOffer": (
+                _raw_value(counter, "has_counter_offer", "hasCounterOffer")
+                or bool(latest_offer) or False
+            ),
             "latest_offer_id": _raw_value(counter, "latest_offer_id", "latestOfferId"), "latestOfferId": _raw_value(counter, "latest_offer_id", "latestOfferId"),
-            "status": _raw_value(counter, "status"),
-        } if counter else None,
+            "status": offer_status or _raw_value(counter, "status"),
+            "revised_price": offer_revised_price, "revisedPrice": offer_revised_price,
+            "responded_at": offer_responded_at, "respondedAt": offer_responded_at,
+            "reason": offer_reason,
+        } if (counter or latest_offer) else None,
         "notes": _raw_value(doc, "notes"),
         "admin_notes": _raw_value(doc, "admin_notes", "adminNotes"), "adminNotes": _raw_value(doc, "admin_notes", "adminNotes"),
         "tracking_number": _raw_value(doc, "tracking_number", "trackingNumber"), "trackingNumber": _raw_value(doc, "tracking_number", "trackingNumber"),
@@ -368,7 +471,7 @@ def _serialize_raw(doc: dict) -> dict:
     }
 
 
-def _serialize(o: Order) -> dict:
+def _serialize(o: Order, latest_offer: Optional[dict] = None) -> dict:
     # Handle missing fields gracefully for old database records
     try:
         payout = getattr(o, "payout_details", None)
@@ -380,12 +483,33 @@ def _serialize(o: Order) -> dict:
                 "sort_code": getattr(payout, "sort_code", None), "sortCode": getattr(payout, "sort_code", None),
             }
         counter = getattr(o, "counter_offer", None)
+        offer_revised_price = None
+        offer_status = None
+        offer_responded_at = None
+        offer_reason = None
+        if latest_offer:
+            offer_revised_price = latest_offer.get("revised_price")
+            offer_status = latest_offer.get("status")
+            offer_responded_at = latest_offer.get("responded_at")
+            if isinstance(offer_responded_at, datetime):
+                offer_responded_at = offer_responded_at.isoformat()
+            offer_reason = latest_offer.get("reason")
         counter_data = None
-        if counter:
+        if counter or latest_offer:
             counter_data = {
-                "has_counter_offer": getattr(counter, "has_counter_offer", False), "hasCounterOffer": getattr(counter, "has_counter_offer", False),
+                "has_counter_offer": (
+                    getattr(counter, "has_counter_offer", False)
+                    or bool(latest_offer)
+                ),
+                "hasCounterOffer": (
+                    getattr(counter, "has_counter_offer", False)
+                    or bool(latest_offer)
+                ),
                 "latest_offer_id": getattr(counter, "latest_offer_id", None), "latestOfferId": getattr(counter, "latest_offer_id", None),
-                "status": getattr(counter, "status", None),
+                "status": offer_status or getattr(counter, "status", None),
+                "revised_price": offer_revised_price, "revisedPrice": offer_revised_price,
+                "responded_at": offer_responded_at, "respondedAt": offer_responded_at,
+                "reason": offer_reason,
             }
         return {
             "id": str(o.id), "_id": str(o.id),

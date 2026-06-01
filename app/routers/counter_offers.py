@@ -10,8 +10,9 @@ from app.services.email_service import (
     send_counter_offer_email,
     send_counter_offer_accepted_email,
     send_counter_offer_declined_email,
+    send_admin_counter_offer_response,
 )
-from app.config.constants import CounterOfferStatus, PaymentStatus
+from app.config.constants import CounterOfferStatus, PaymentStatus, OrderStatus
 from app.utils.response import success_response, created_response
 from app.utils.logger import logger
 
@@ -166,13 +167,23 @@ async def accept_offer(token: str):
         order.final_price = offer.revised_price
         if order.counter_offer:
             order.counter_offer.status = CounterOfferStatus.ACCEPTED
+        # Move the order into PRICE_REVISED so the admin list shows the
+        # change immediately — without this, accepted offers sat under
+        # whatever status the order was in (e.g. DEVICE_RECEIVED) and the
+        # revised price was effectively invisible on the main page.
+        order.status = OrderStatus.PRICE_REVISED
         order.payment_status = PaymentStatus.PENDING
+        order.price_revision_reason = offer.reason
         order.updated_at = now
         await order.save()
         try:
             await send_counter_offer_accepted_email(order, offer)
         except Exception as e:
             logger.warning(f"Counter offer accepted email failed: {e}")
+        try:
+            await send_admin_counter_offer_response(order, offer, accepted=True)
+        except Exception as e:
+            logger.warning(f"Admin counter offer accepted notification failed: {e}")
 
     logger.info(f"Counter offer accepted: {offer.order_number}")
     return success_response(
@@ -204,12 +215,20 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
     if order:
         if order.counter_offer:
             order.counter_offer.status = CounterOfferStatus.DECLINED
+        # Decline ends the workflow — the device gets returned. Surface this
+        # in the main admin list rather than leaving the order in its prior
+        # status so staff can act (arrange return) without checking detail.
+        order.status = OrderStatus.CANCELLED
         order.updated_at = now
         await order.save()
         try:
             await send_counter_offer_declined_email(order, offer)
         except Exception as e:
             logger.warning(f"Counter offer declined email failed: {e}")
+        try:
+            await send_admin_counter_offer_response(order, offer, accepted=False)
+        except Exception as e:
+            logger.warning(f"Admin counter offer declined notification failed: {e}")
 
     logger.info(f"Counter offer declined: {offer.order_number}")
     return success_response(
