@@ -109,6 +109,12 @@ async def create_counter_offer(body: CreateCounterOfferSchema):
         order.counter_offer.has_counter_offer = True
         order.counter_offer.latest_offer_id = str(offer.id)
         order.counter_offer.status = CounterOfferStatus.PENDING
+        # Surface the revision on the order itself the moment it's sent, so the
+        # admin orders list/detail shows the revised price + reason immediately
+        # — previously the revised amount was only visible after the customer
+        # ACCEPTED (because accept_offer set final_price/status). Mirrors that.
+        order.status = OrderStatus.PRICE_REVISED
+        order.price_revision_reason = offer.reason
         order.updated_at = datetime.utcnow()
         await order.save()
     except Exception as e:
@@ -215,16 +221,17 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
     if order:
         if order.counter_offer:
             order.counter_offer.status = CounterOfferStatus.DECLINED
-        # Decline ends the workflow — the device gets returned. Surface this
-        # in the main admin list rather than leaving the order in its prior
-        # status so staff can act (arrange return) without checking detail.
-        order.status = OrderStatus.CANCELLED
+        # Do NOT auto-cancel. Keep the order visible on the admin back-end under
+        # PRICE_REVISED with the revised price + reason and a "Declined" tag, so
+        # staff can follow up (e.g. on WhatsApp) and choose the final status
+        # themselves. Auto-cancelling here hid the revised price and slammed the
+        # order to Cancelled before staff could act.
+        order.status = OrderStatus.PRICE_REVISED
+        order.price_revision_reason = offer.reason
         order.updated_at = now
         await order.save()
-        try:
-            await send_counter_offer_declined_email(order, offer)
-        except Exception as e:
-            logger.warning(f"Counter offer declined email failed: {e}")
+        # No automatic customer email on decline — declines are handled manually
+        # (WhatsApp). Admins are still notified out-of-band below.
         try:
             await send_admin_counter_offer_response(order, offer, accepted=False)
         except Exception as e:

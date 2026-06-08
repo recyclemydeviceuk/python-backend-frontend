@@ -189,7 +189,10 @@ async def update_order(order_id: str, body: UpdateOrderSchema):
         if order.status == "PAID":
             await send_order_completion_email(order)
             await send_payment_confirmation(order)
-        else:
+        elif order.status != "PRICE_REVISED":
+            # Skip the generic status email for PRICE_REVISED — it quotes the
+            # original full price. A genuine revision sends the dedicated
+            # price-revision email below (with the correct revised amount).
             await send_order_status_update(order, old_status)
     if body.final_price and body.final_price != old_final_price and order.price_revision_reason:
         await send_price_revision_email(order, old_final_price, body.final_price, order.price_revision_reason)
@@ -286,6 +289,12 @@ async def update_status(order_id: str, body: UpdateOrderStatusSchema):
         if new_status == "PAID":
             await send_order_completion_email(order)
             await send_payment_confirmation(order)
+        elif new_status == "PRICE_REVISED":
+            # "Price Revised" is driven by the Counter Offer flow, which sends
+            # its own correct email (revised price + accept/decline links). The
+            # generic status email here would quote the ORIGINAL full price, so
+            # skip it to avoid confusing the customer with the wrong amount.
+            pass
         elif old_status != new_status:
             await send_order_status_update(order, old_status)
     except Exception as e:

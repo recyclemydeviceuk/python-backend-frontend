@@ -172,7 +172,9 @@ async def send_order_status_update(order, old_status: str) -> bool:
             "newStatus": order.status,
             "statusMessage": ORDER_STATUS_MESSAGES.get(order.status, "Status updated"),
             "deviceName": order.device_name,
-            "finalPrice": f"£{final_price:.2f}",
+            # The template already prints the £ symbol (`£{{finalPrice}}`), so
+            # the value must NOT include one — otherwise the customer sees "££".
+            "finalPrice": f"{final_price:.2f}",
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
             "supportPhone": EMAIL_DEFAULTS["support_phone"],
