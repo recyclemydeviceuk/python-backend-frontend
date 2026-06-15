@@ -18,6 +18,13 @@ class CounterOfferEmbed(BaseModel):
     has_counter_offer: bool = Field(False, alias="hasCounterOffer")
     latest_offer_id: Optional[str] = Field(None, alias="latestOfferId")
     status: Optional[str] = None
+    # The revised amount is stored on the order itself the moment a counter
+    # offer is SENT (not just when the customer accepts), so the admin panel
+    # shows it immediately without depending on a live join to the
+    # counteroffers collection. Mirrors the CounterOffer document.
+    revised_price: Optional[float] = Field(None, alias="revisedPrice")
+    reason: Optional[str] = None
+    responded_at: Optional[datetime] = Field(None, alias="respondedAt")
 
 
 class Order(Document):

@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     CORS_ORIGIN: str = "*"
 
     # Admin
-    ADMIN_EMAILS: str = ""  # comma-separated
+    # Recipients for internal notifications (e.g. counter-offer accepted/declined).
+    # Defaults to the support inbox so notifications never silently fall back to a
+    # personal address; override via the ADMIN_EMAILS env var (comma-separated).
+    ADMIN_EMAILS: str = "support@cashmymobile.co.uk"  # comma-separated
     OTP_EXPIRY_MINUTES: int = 10
 
     # AWS General (used for SES)

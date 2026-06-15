@@ -178,6 +178,10 @@ async def send_order_status_update(order, old_status: str) -> bool:
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
             "supportPhone": EMAIL_DEFAULTS["support_phone"],
+            # WhatsApp contact shown on every status email (incl. Pack Sent /
+            # Device Received), not just the counter-offer email.
+            "whatsappNumber": WHATSAPP_NUMBER_DISPLAY,
+            "whatsappLink": f"https://wa.me/{WHATSAPP_NUMBER_LINK}",
         })
         return _send_email(order.customer_email, f"Order Update - {order.order_number}", html)
     except Exception as e:
@@ -436,6 +440,8 @@ async def send_counter_offer_accepted_email(order, counter_offer) -> bool:
             "orderNumber": order.order_number,
             "revisedPrice": f"{counter_offer.revised_price:.2f}",
             "supportEmail": EMAIL_DEFAULTS["support_email"],
+            "whatsappNumber": WHATSAPP_NUMBER_DISPLAY,
+            "whatsappLink": f"https://wa.me/{WHATSAPP_NUMBER_LINK}",
         })
         return _send_email(order.customer_email, f"Counter Offer Accepted - Order #{order.order_number}", html)
     except Exception as e:

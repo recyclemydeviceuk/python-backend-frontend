@@ -429,6 +429,19 @@ def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
         if isinstance(offer_responded_at, datetime):
             offer_responded_at = offer_responded_at.isoformat()
         offer_reason = latest_offer.get("reason")
+    # Fall back to the values persisted on the order's embedded counter_offer.
+    # These are written the moment a counter offer is SENT, so the revised
+    # price is known even if the join to the counteroffers collection misses.
+    if offer_revised_price is None:
+        offer_revised_price = _raw_value(counter, "revised_price", "revisedPrice")
+    if offer_status is None:
+        offer_status = _raw_value(counter, "status")
+    if offer_reason is None:
+        offer_reason = _raw_value(counter, "reason")
+    if offer_responded_at is None:
+        offer_responded_at = _raw_value(counter, "responded_at", "respondedAt")
+        if isinstance(offer_responded_at, datetime):
+            offer_responded_at = offer_responded_at.isoformat()
     return {
         "id": str(doc.get("_id") or doc.get("id")), "_id": str(doc.get("_id") or doc.get("id")),
         "order_number": _raw_value(doc, "order_number", "orderNumber") or "", "orderNumber": _raw_value(doc, "order_number", "orderNumber") or "",
@@ -503,6 +516,18 @@ def _serialize(o: Order, latest_offer: Optional[dict] = None) -> dict:
             if isinstance(offer_responded_at, datetime):
                 offer_responded_at = offer_responded_at.isoformat()
             offer_reason = latest_offer.get("reason")
+        # Fall back to the values persisted on the order's embedded
+        # counter_offer (written the moment the offer is SENT).
+        if counter is not None:
+            if offer_revised_price is None:
+                offer_revised_price = getattr(counter, "revised_price", None)
+            if offer_status is None:
+                offer_status = getattr(counter, "status", None)
+            if offer_reason is None:
+                offer_reason = getattr(counter, "reason", None)
+            if offer_responded_at is None:
+                _ra = getattr(counter, "responded_at", None)
+                offer_responded_at = _ra.isoformat() if isinstance(_ra, datetime) else _ra
         counter_data = None
         if counter or latest_offer:
             counter_data = {

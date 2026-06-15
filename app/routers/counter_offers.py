@@ -112,7 +112,11 @@ async def create_counter_offer(body: CreateCounterOfferSchema):
         # Surface the revision on the order itself the moment it's sent, so the
         # admin orders list/detail shows the revised price + reason immediately
         # — previously the revised amount was only visible after the customer
-        # ACCEPTED (because accept_offer set final_price/status). Mirrors that.
+        # ACCEPTED (because accept_offer set final_price/status). Persist the
+        # actual numbers on the embedded counter_offer so the backend never
+        # has to rely on a live join to know what we offered the customer.
+        order.counter_offer.revised_price = float(offer.revised_price)
+        order.counter_offer.reason = offer.reason
         order.status = OrderStatus.PRICE_REVISED
         order.price_revision_reason = offer.reason
         order.updated_at = datetime.utcnow()
@@ -173,6 +177,9 @@ async def accept_offer(token: str):
         order.final_price = offer.revised_price
         if order.counter_offer:
             order.counter_offer.status = CounterOfferStatus.ACCEPTED
+            order.counter_offer.revised_price = float(offer.revised_price)
+            order.counter_offer.reason = offer.reason
+            order.counter_offer.responded_at = now
         # Move the order into PRICE_REVISED so the admin list shows the
         # change immediately — without this, accepted offers sat under
         # whatever status the order was in (e.g. DEVICE_RECEIVED) and the
@@ -221,6 +228,9 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
     if order:
         if order.counter_offer:
             order.counter_offer.status = CounterOfferStatus.DECLINED
+            order.counter_offer.revised_price = float(offer.revised_price)
+            order.counter_offer.reason = offer.reason
+            order.counter_offer.responded_at = now
         # Do NOT auto-cancel. Keep the order visible on the admin back-end under
         # PRICE_REVISED with the revised price + reason and a "Declined" tag, so
         # staff can follow up (e.g. on WhatsApp) and choose the final status
