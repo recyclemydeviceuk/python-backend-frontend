@@ -18,6 +18,7 @@ class CreateOrderSchema(BaseModel):
     customer_phone: str = Field(..., alias="customerPhone")
     customer_email: Optional[EmailStr] = Field(None, alias="customerEmail")
     customer_address: str = Field(..., alias="customerAddress")
+    city: Optional[str] = None
     postcode: Optional[str] = None
     device_id: Optional[str] = Field(None, alias="deviceId")
     device_name: str = Field(..., alias="deviceName")
@@ -49,6 +50,10 @@ class UpdateOrderSchema(BaseModel):
 
 class UpdateOrderStatusSchema(BaseModel):
     status: OrderStatus
+    # Optional free-text note from staff that gets included in the customer's
+    # status-update email (e.g. "Your pack is on its way, expect it in 2 days").
+    # Empty/None → the standard templated email goes out unchanged.
+    comment: Optional[str] = None
 
 
 class BulkUpdateOrdersSchema(BaseModel):

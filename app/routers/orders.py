@@ -296,7 +296,7 @@ async def update_status(order_id: str, body: UpdateOrderStatusSchema):
             # skip it to avoid confusing the customer with the wrong amount.
             pass
         elif old_status != new_status:
-            await send_order_status_update(order, old_status)
+            await send_order_status_update(order, old_status, comment=body.comment)
     except Exception as e:
         logger.warning(f"Status email failed for {order.order_number}: {e}")
 
@@ -306,28 +306,41 @@ async def update_status(order_id: str, body: UpdateOrderStatusSchema):
 
 @router.delete("/{order_id}", summary="Delete order", dependencies=[Depends(get_current_admin)])
 async def delete_order(order_id: str):
-    order = await Order.get(order_id)
-    if not order:
-        # Idempotent: deleting an already-deleted order should not 404 from
-        # the admin panel's perspective. The user kept hitting this when
-        # rapid-clicking delete on a stale list.
-        logger.info(f"Delete called on missing order_id={order_id} (no-op)")
-        return success_response({"message": "Order already removed"})
+    # Delete straight from the raw collection by _id. We deliberately do NOT load
+    # the order through the Beanie/Pydantic model first (Order.get), because OLD
+    # orders created by the previous backend are often missing fields the current
+    # Order model marks as required (postage_method, customer_address,
+    # device_grade, ...). Loading them raises a ValidationError, so the delete
+    # 500'd and the row reappeared — admins could SEE these orders (the list uses
+    # a raw motor query) but never delete them, while newer well-formed orders
+    # deleted fine. Matching _id directly sidesteps model validation entirely.
+    from bson import ObjectId as BsonObjectId
 
-    # Cascade-delete any counter offers tied to this order so the orders
-    # collection doesn't accumulate orphaned offer rows for deleted/test
-    # data. Best-effort — if it fails, still delete the order so the user
-    # can actually clear their list.
+    collection = Order.get_motor_collection()
+
+    # Build candidate _id matches: the raw string exactly as stored, plus its
+    # ObjectId form when the id is a valid 24-hex string. Covers both ObjectId
+    # _ids (the norm) and any legacy string _ids.
+    candidates: list = [order_id]
+    try:
+        candidates.append(BsonObjectId(order_id))
+    except Exception:
+        pass
+
+    # Cascade-delete any counter offers tied to this order so the collection
+    # doesn't accumulate orphaned offer rows. Best-effort — never block the
+    # order delete on it.
     try:
         from app.models.counter_offer import CounterOffer
-        await CounterOffer.find(CounterOffer.order_id == str(order.id)).delete()
+        co = CounterOffer.get_motor_collection()
+        await co.delete_many({"order_id": {"$in": [str(c) for c in candidates]}})
     except Exception as e:
-        logger.warning(f"Failed to cascade-delete counter offers for {order.order_number}: {e}")
+        logger.warning(f"Failed to cascade-delete counter offers for {order_id}: {e}")
 
     try:
-        await order.delete()
+        result = await collection.delete_one({"_id": {"$in": candidates}})
     except Exception as e:
-        logger.exception(f"Failed to delete order {order.order_number}: {e}")
+        logger.exception(f"Failed to delete order id={order_id}: {e}")
         raise HTTPException(
             status_code=500,
             detail=(
@@ -336,7 +349,13 @@ async def delete_order(order_id: str):
             ),
         )
 
-    logger.info(f"Order deleted: {order.order_number}")
+    if result.deleted_count == 0:
+        # Idempotent: nothing matched (already deleted, or unknown id). The admin
+        # panel optimistically drops the row, so report success either way.
+        logger.info(f"Delete matched no order for id={order_id} (no-op)")
+        return success_response({"message": "Order already removed"})
+
+    logger.info(f"Order deleted: id={order_id}")
     return success_response({"message": "Order deleted successfully"})
 
 
@@ -450,6 +469,7 @@ def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
         "customer_phone": _raw_value(doc, "customer_phone", "customerPhone") or "", "customerPhone": _raw_value(doc, "customer_phone", "customerPhone") or "",
         "customer_email": _raw_value(doc, "customer_email", "customerEmail"), "customerEmail": _raw_value(doc, "customer_email", "customerEmail"),
         "customer_address": _raw_value(doc, "customer_address", "customerAddress") or "", "customerAddress": _raw_value(doc, "customer_address", "customerAddress") or "",
+        "city": _raw_value(doc, "city"),
         "postcode": _raw_value(doc, "postcode"),
         "device_id": str(_raw_value(doc, "device_id", "deviceId")) if _raw_value(doc, "device_id", "deviceId") is not None else None, "deviceId": str(_raw_value(doc, "device_id", "deviceId")) if _raw_value(doc, "device_id", "deviceId") is not None else None,
         "device_name": _raw_value(doc, "device_name", "deviceName") or "", "deviceName": _raw_value(doc, "device_name", "deviceName") or "",
@@ -553,6 +573,7 @@ def _serialize(o: Order, latest_offer: Optional[dict] = None) -> dict:
             "customer_phone": getattr(o, "customer_phone", ""), "customerPhone": getattr(o, "customer_phone", ""),
             "customer_email": getattr(o, "customer_email", None), "customerEmail": getattr(o, "customer_email", None),
             "customer_address": getattr(o, "customer_address", ""), "customerAddress": getattr(o, "customer_address", ""),
+            "city": getattr(o, "city", None),
             "postcode": getattr(o, "postcode", None),
             "device_id": getattr(o, "device_id", None), "deviceId": getattr(o, "device_id", None),
             "device_name": getattr(o, "device_name", ""), "deviceName": getattr(o, "device_name", ""),

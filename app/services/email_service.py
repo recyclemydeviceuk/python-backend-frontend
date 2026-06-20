@@ -159,7 +159,7 @@ async def send_order_confirmation(order) -> bool:
         return False
 
 
-async def send_order_status_update(order, old_status: str) -> bool:
+async def send_order_status_update(order, old_status: str, comment: Optional[str] = None) -> bool:
     if not order.customer_email:
         return False
     try:
@@ -171,6 +171,10 @@ async def send_order_status_update(order, old_status: str) -> bool:
             "oldStatus": old_status,
             "newStatus": order.status,
             "statusMessage": ORDER_STATUS_MESSAGES.get(order.status, "Status updated"),
+            # Optional free-text note staff typed when changing the status. When
+            # present it renders as a highlighted "A note from our team" block;
+            # when empty the placeholder collapses to nothing.
+            "statusComment": _status_comment_html(comment),
             "deviceName": order.device_name,
             # The template already prints the £ symbol (`£{{finalPrice}}`), so
             # the value must NOT include one — otherwise the customer sees "££".
@@ -187,6 +191,27 @@ async def send_order_status_update(order, old_status: str) -> bool:
     except Exception as e:
         logger.error(f"Error sending status update email: {e}")
         return False
+
+
+def _status_comment_html(comment: Optional[str]) -> str:
+    """Render the optional staff note shown in the status-update email.
+    Returns an empty string when there's no comment so the {{statusComment}}
+    placeholder simply disappears. HTML-escapes the text so a stray '<' from
+    staff can't break the email layout."""
+    if not comment or not comment.strip():
+        return ""
+    import html as _html
+    safe = _html.escape(comment.strip()).replace("\n", "<br>")
+    return (
+        '<table role="presentation" style="width: 100%; background-color: #eff6ff; '
+        'border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; border-radius: 10px; '
+        'margin: 24px 0;" cellspacing="0" cellpadding="0" border="0"><tr>'
+        '<td style="padding: 16px 20px;">'
+        '<p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #1d4ed8; '
+        'text-transform: uppercase; letter-spacing: .04em;">A note from our team</p>'
+        f'<p style="margin: 0; font-size: 15px; color: #1f2937; line-height: 1.6;">{safe}</p>'
+        '</td></tr></table>'
+    )
 
 
 async def send_order_completion_email(order) -> bool:

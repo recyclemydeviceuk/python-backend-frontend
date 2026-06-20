@@ -979,6 +979,7 @@ async def create_external_order(
             customer_phone=body.customer_phone,
             customer_email=body.customer_email or "",
             customer_address=body.customer_address,
+            city=body.city,
             postcode=body.postcode,
             device_id=str(device.id),
             device_name=body.device_name,

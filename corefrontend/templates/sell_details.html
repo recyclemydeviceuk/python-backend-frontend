@@ -82,11 +82,17 @@
       <div class="form-fields">
         <div>
           <label class="field-label">Address <span style="color:#dc2626">*</span></label>
-          <textarea name="address" class="field-input field-textarea" rows="3" placeholder="123 High Street, London" required></textarea>
+          <textarea name="address" class="field-input field-textarea" rows="3" placeholder="123 High Street" required></textarea>
         </div>
-        <div>
-          <label class="field-label">Postcode <span style="color:#dc2626">*</span></label>
-          <input type="text" name="postcode" class="field-input" placeholder="SW1A 1AA" required />
+        <div class="form-row">
+          <div>
+            <label class="field-label">City / Town <span style="color:#dc2626">*</span></label>
+            <input type="text" name="city" class="field-input" placeholder="London" required />
+          </div>
+          <div>
+            <label class="field-label">Postcode <span style="color:#dc2626">*</span></label>
+            <input type="text" name="postcode" class="field-input" placeholder="SW1A 1AA" required />
+          </div>
         </div>
       </div>
     </div>

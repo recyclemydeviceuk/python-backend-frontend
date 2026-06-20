@@ -37,6 +37,7 @@ class Order(Document):
     customer_phone: str = Field(..., alias="customerPhone")
     customer_email: Optional[str] = Field(None, alias="customerEmail")
     customer_address: str = Field(..., alias="customerAddress")
+    city: Optional[str] = None
     postcode: Optional[str] = None
     device_id: Optional[str] = Field(None, alias="deviceId")
     device_name: str = Field(..., alias="deviceName")
