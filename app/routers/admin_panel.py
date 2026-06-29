@@ -249,7 +249,7 @@ async def admin_dashboard(request: Request):
     api_logs = await _safe_api_logs()
 
     total = len(orders)
-    active = sum(1 for o in orders if o.status not in ['COMPLETED', 'PAID', 'CLOSED', 'CANCELLED'])
+    active = sum(1 for o in orders if o.status not in ['COMPLETED', 'PAID', 'CLOSED', 'CANCELLED', 'RETURNED'])
     paid = sum(1 for o in orders if o.status in ['COMPLETED', 'PAID'])
     total_value = sum((o.final_price or o.offered_price) for o in orders if o.status in ['COMPLETED', 'PAID'])
     api_orders = sum(1 for o in orders if o.source == 'API')
@@ -331,11 +331,13 @@ async def admin_orders(request: Request, q: str = "", status: str = "", page: in
     if export == "csv":
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['Order #', 'Customer', 'Email', 'Phone', 'Device', 'Network', 'Grade',
+        writer.writerow(['Order #', 'Customer', 'Email', 'Phone', 'Address', 'City', 'Postcode',
+                         'Device', 'Network', 'Grade',
                          'Storage', '£ Offered', '£ Final', 'Status', 'Source', 'Payment', 'Postage', 'Date'])
         for o in filtered:
             writer.writerow([
                 o.order_number, o.customer_name, o.customer_email or '', o.customer_phone,
+                o.customer_address or '', getattr(o, 'city', None) or '', getattr(o, 'postcode', None) or '',
                 o.device_name, o.network, o.device_grade, o.storage,
                 o.offered_price, o.final_price or '', o.status, o.source,
                 o.payment_status, o.postage_method,

@@ -157,6 +157,13 @@ async def update_order(order_id: str, body: UpdateOrderSchema):
         order.status = normalized_new_status
     if body.final_price is not None:
         order.final_price = body.final_price
+        # Keep the embedded counter-offer revised price in sync with a manual
+        # price edit. The admin price column reads counter_offer.revised_price
+        # first (falling back to final_price), so without this a manual edit on
+        # an order that already has a counter offer would be silently hidden by
+        # the older revised amount.
+        if order.counter_offer and order.counter_offer.has_counter_offer:
+            order.counter_offer.revised_price = body.final_price
     if body.price_revision_reason is not None:
         order.price_revision_reason = body.price_revision_reason
     if body.tracking_number is not None:
@@ -216,8 +223,9 @@ _LEGACY_STATUS_ALIASES = {
     "completed":     "PAID",
     "paid":          "PAID",
     "complete":      "PAID",
-    "cancelled":     "CANCELLED",
-    "canceled":      "CANCELLED",
+    "cancelled":     "RETURNED",
+    "canceled":      "RETURNED",
+    "returned":      "RETURNED",
     "closed":        "CLOSED",
     "pack sent":     "PACK_SENT",
     "pack_sent":     "PACK_SENT",
@@ -239,7 +247,7 @@ def _normalize_status(raw: str) -> str:
     if s.upper() in {
         "RECEIVED", "PACK_SENT", "DEVICE_RECEIVED", "INSPECTION_PASSED",
         "INSPECTION_FAILED", "PRICE_REVISED", "PAYOUT_READY",
-        "PAID", "CLOSED", "CANCELLED",
+        "PAID", "CLOSED", "RETURNED",
     }:
         return s.upper()
     return _LEGACY_STATUS_ALIASES.get(s.lower(), s)
@@ -261,7 +269,7 @@ async def update_status(order_id: str, body: UpdateOrderStatusSchema):
                 "The field 'status' is required and cannot be empty. "
                 "Please choose one of: Received, Pack Sent, Device Received, "
                 "Inspection Passed, Inspection Failed, Price Revised, "
-                "Payout Ready, Paid, Closed, Cancelled."
+                "Payout Ready, Paid, Closed, Returned."
             ),
         )
 

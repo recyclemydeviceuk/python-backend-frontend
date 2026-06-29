@@ -32,6 +32,30 @@ def _load_template(template_name: str) -> str:
         return "<p>{{message}}</p>"
 
 
+def _html_to_text(html: str) -> str:
+    """Best-effort plain-text version of an HTML email body.
+    Sending HTML-only mail (no text/plain alternative) is one of the strongest
+    spam signals — Gmail/Outlook routinely junk it. We strip tags here so every
+    email goes out as a proper multipart/alternative."""
+    import re
+    if not html:
+        return ""
+    text = re.sub(r"(?is)<(script|style).*?</\1>", "", html)
+    # Turn common block/line breaks into newlines before stripping tags.
+    text = re.sub(r"(?i)<\s*br\s*/?>", "\n", text)
+    text = re.sub(r"(?i)</\s*(p|div|tr|h[1-6]|li)\s*>", "\n", text)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    # Unescape the handful of entities our templates use.
+    for ent, ch in (("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"),
+                    ("&gt;", ">"), ("&pound;", "£"), ("&#39;", "'"),
+                    ("&quot;", '"')):
+        text = text.replace(ent, ch)
+    # Collapse runs of whitespace; keep paragraph breaks.
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
+    return text.strip()
+
+
 def _brevo_send(
     to_list: list,
     subject: str,
@@ -57,8 +81,9 @@ def _brevo_send(
         "htmlContent": html,
         "replyTo": {"email": BREVO_REPLY_TO},
     }
-    if text:
-        payload["textContent"] = text
+    # Always include a text/plain alternative. Derive one from the HTML when
+    # the caller didn't supply it, so no email ever goes out HTML-only.
+    payload["textContent"] = text or _html_to_text(html) or subject
     if attachments:
         payload["attachment"] = attachments
 

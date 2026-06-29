@@ -29,7 +29,9 @@ async def get_order_stats() -> dict:
     # MongoDB query matches the canonical string stored on each row.
     pending = await Order.find(Order.status == "RECEIVED").count()
     completed = await Order.find(Order.status == "PAID").count()
-    cancelled = await Order.find(Order.status == "CANCELLED").count()
+    # "Cancelled" was renamed to "Returned"; count both so the figure stays
+    # correct across the migration (legacy rows + new ones).
+    cancelled = await Order.find({"status": {"$in": ["RETURNED", "CANCELLED"]}}).count()
 
     pipeline = [{"$group": {"_id": None, "total": {"$sum": "$offered_price"}}}]
     result = await Order.aggregate(pipeline).to_list()

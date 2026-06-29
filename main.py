@@ -44,8 +44,12 @@ _LEGACY_TO_CANONICAL_STATUS: dict = {
     "completed":           "PAID",
     "complete":            "PAID",
     "paid":                "PAID",
-    "cancelled":           "CANCELLED",
-    "canceled":            "CANCELLED",
+    # "Cancelled" is retired in favour of "Returned" — map all legacy spellings
+    # (and the old canonical CANCELLED value) onto RETURNED so existing orders
+    # migrate automatically on the next boot.
+    "cancelled":           "RETURNED",
+    "canceled":            "RETURNED",
+    "returned":            "RETURNED",
     "closed":              "CLOSED",
     "pack sent":           "PACK_SENT",
     "pack_sent":           "PACK_SENT",
@@ -71,9 +75,12 @@ def _clean_status_string(raw) -> str:
         if s.startswith(prefix):
             s = s[len(prefix):]
             break
+    # Note: CANCELLED is intentionally NOT canonical anymore — a stored
+    # "CANCELLED" therefore falls through to the legacy map below and becomes
+    # RETURNED, migrating old orders on boot.
     canonical = {"RECEIVED", "PACK_SENT", "DEVICE_RECEIVED", "INSPECTION_PASSED",
                  "INSPECTION_FAILED", "PRICE_REVISED", "PAYOUT_READY", "PAID",
-                 "CLOSED", "CANCELLED"}
+                 "CLOSED", "RETURNED"}
     if s.upper() in canonical:
         return s.upper()
     return _LEGACY_TO_CANONICAL_STATUS.get(s.lower(), s)
@@ -121,7 +128,7 @@ async def _seed_workflow_statuses():
     canonical_values = {
         "RECEIVED", "PACK_SENT", "DEVICE_RECEIVED", "INSPECTION_PASSED",
         "INSPECTION_FAILED", "PRICE_REVISED", "PAYOUT_READY", "PAID",
-        "CLOSED", "CANCELLED",
+        "CLOSED", "RETURNED",
     }
     existing_rows = await OrderStatus.find().to_list()
     removed = 0
@@ -154,7 +161,7 @@ async def _seed_workflow_statuses():
         ("Payout Ready",        "PAYOUT_READY",        "bg-teal-100 text-teal-700",       7),
         ("Paid",                "PAID",                "bg-green-100 text-green-700",     8),
         ("Closed",              "CLOSED",              "bg-gray-100 text-gray-700",       9),
-        ("Cancelled",           "CANCELLED",           "bg-red-100 text-red-700",        10),
+        ("Returned",            "RETURNED",            "bg-red-100 text-red-700",        10),
     ]
     for name, value, color, sort_order in canonical_order_statuses:
         existing = await OrderStatus.find_one(OrderStatus.value == value)

@@ -19,7 +19,8 @@ async def get_dashboard_stats() -> dict:
     # the Mongo query matches what's actually stored on each order row.
     pending = await Order.find(Order.status == "RECEIVED").count()
     completed = await Order.find(Order.status == "PAID").count()
-    cancelled = await Order.find(Order.status == "CANCELLED").count()
+    # "Cancelled" renamed to "Returned" — count both across the migration.
+    cancelled = await Order.find({"status": {"$in": ["RETURNED", "CANCELLED"]}}).count()
 
     # Revenue
     pipeline = [
