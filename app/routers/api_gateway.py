@@ -301,12 +301,33 @@ class GatewayOrderSchema(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        # Build a lookup of normalized incoming keys → original value
+        # Build a lookup of normalized incoming keys → original value.
+        # We flatten nested objects too: some partners (e.g. MoneySupermarket /
+        # DOP integrations) wrap the payout details in a sub-object such as
+        # {"payout": {"account_number": ...}} or {"bankDetails": {...}} instead
+        # of sending them flat. Without recursing, every flat field mapped but
+        # the bank details silently came through empty. Top-level keys are added
+        # first and win; nested leaves only fill the gaps.
         lookup: dict = {}
-        for k, v in data.items():
-            nk = _normalize_key(k)
-            if nk and nk not in lookup:
-                lookup[nk] = v
+
+        def _flatten_into(obj, into, depth=0):
+            if depth > 4 or not isinstance(obj, dict):
+                return
+            nested = []
+            for k, v in obj.items():
+                if isinstance(v, dict):
+                    nested.append(v)
+                    continue
+                if isinstance(v, list):
+                    nested.extend(x for x in v if isinstance(x, dict))
+                    continue
+                nk = _normalize_key(k)
+                if nk and nk not in into:
+                    into[nk] = v
+            for child in nested:
+                _flatten_into(child, into, depth + 1)
+
+        _flatten_into(data, lookup)
 
         out: dict = {}
         for canonical, variants in _FIELD_ALIASES.items():

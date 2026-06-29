@@ -31,5 +31,5 @@ ORDER_STATUS_MESSAGES = {
     "PAYOUT_READY":       "Your payment is ready to be processed",
     "PAID":               "Payment has been sent",
     "CLOSED":             "Your order has been completed",
-    "CANCELLED":          "Your order has been cancelled",
+    "RETURNED":           "Your device has been returned to you",
 }

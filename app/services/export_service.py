@@ -12,7 +12,8 @@ async def export_orders_csv(orders: List[Order]) -> bytes:
     output = io.StringIO()
     fieldnames = [
         "Order Number", "Source", "Status", "Customer Name", "Customer Phone",
-        "Customer Email", "Device Name", "Network", "Storage", "Device Grade",
+        "Customer Email", "Address", "City", "Postcode",
+        "Device Name", "Network", "Storage", "Device Grade",
         "Offered Price", "Final Price", "Payment Status", "Postage Method",
         "Tracking Number", "Created At",
     ]
@@ -27,6 +28,11 @@ async def export_orders_csv(orders: List[Order]) -> bytes:
             "Customer Name": order.customer_name,
             "Customer Phone": order.customer_phone,
             "Customer Email": order.customer_email or "",
+            # Royal Mail labels need the postal address — these columns were
+            # missing entirely before, so the address mapped to nothing.
+            "Address": order.customer_address or "",
+            "City": getattr(order, "city", None) or "",
+            "Postcode": getattr(order, "postcode", None) or "",
             "Device Name": order.device_name,
             "Network": order.network,
             "Storage": order.storage,

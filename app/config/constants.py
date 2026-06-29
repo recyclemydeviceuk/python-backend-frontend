@@ -11,7 +11,7 @@ class OrderStatus(str, Enum):
     PAYOUT_READY = "PAYOUT_READY"
     PAID = "PAID"
     CLOSED = "CLOSED"
-    CANCELLED = "CANCELLED"
+    RETURNED = "RETURNED"
 
 
 ORDER_STATUS_LABELS = {
@@ -24,7 +24,7 @@ ORDER_STATUS_LABELS = {
     "PAYOUT_READY": "Payout Ready",
     "PAID": "Paid",
     "CLOSED": "Closed",
-    "CANCELLED": "Cancelled",
+    "RETURNED": "Returned",
 }
 
 ORDER_STATUS_WORKFLOW = [

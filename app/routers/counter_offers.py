@@ -117,6 +117,15 @@ async def create_counter_offer(body: CreateCounterOfferSchema):
         # has to rely on a live join to know what we offered the customer.
         order.counter_offer.revised_price = float(offer.revised_price)
         order.counter_offer.reason = offer.reason
+        # Set final_price the moment the offer is SENT — not only when the
+        # customer accepts. The admin UI (list + detail) falls back to
+        # finalPrice to render the price, so without this the revised amount
+        # stayed invisible until acceptance. This restores the behaviour of
+        # the legacy admin_panel counter-offer flow, which set final_price
+        # here too. Because create runs first, the value persists through a
+        # later DECLINE, and ACCEPT re-sets the same number — so the revised
+        # price shows in all three states (sent / accepted / declined).
+        order.final_price = float(offer.revised_price)
         order.status = OrderStatus.PRICE_REVISED
         order.price_revision_reason = offer.reason
         order.updated_at = datetime.utcnow()
@@ -231,6 +240,10 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
             order.counter_offer.revised_price = float(offer.revised_price)
             order.counter_offer.reason = offer.reason
             order.counter_offer.responded_at = now
+        # Keep final_price pinned to the revised amount on decline too, so the
+        # order's price column keeps showing what we offered (the order stays
+        # in PRICE_REVISED for manual WhatsApp follow-up). Mirrors accept_offer.
+        order.final_price = float(offer.revised_price)
         # Do NOT auto-cancel. Keep the order visible on the admin back-end under
         # PRICE_REVISED with the revised price + reason and a "Declined" tag, so
         # staff can follow up (e.g. on WhatsApp) and choose the final status
