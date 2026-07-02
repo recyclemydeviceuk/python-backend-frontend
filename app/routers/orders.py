@@ -25,6 +25,21 @@ async def get_all_orders(
     limit: Optional[int] = Query(None, ge=1),
     status: Optional[str] = None,
     source: Optional[str] = None,
+    payment_status: Optional[str] = None,
+    paymentStatus: Optional[str] = None,
+    grade: Optional[str] = None,
+    network: Optional[str] = None,
+    postage_method: Optional[str] = None,
+    postageMethod: Optional[str] = None,
+    partner: Optional[str] = None,
+    date_from: Optional[str] = None,
+    dateFrom: Optional[str] = None,
+    date_to: Optional[str] = None,
+    dateTo: Optional[str] = None,
+    min_price: Optional[float] = None,
+    minPrice: Optional[float] = None,
+    max_price: Optional[float] = None,
+    maxPrice: Optional[float] = None,
     search: Optional[str] = None,
     sort_by: str = "created_at",
     sortBy: Optional[str] = None,
@@ -32,27 +47,24 @@ async def get_all_orders(
     sortOrder: Optional[str] = None,
 ):
     try:
-        filters = []
-        if status:
-            filters.append({"status": status})
-        if source:
-            filters.append({"source": source})
-
-        query = {"$and": filters} if filters else {}
         collection = Order.get_motor_collection()
-        docs = await collection.find(query).to_list(length=None)
+        docs = await collection.find({}).to_list(length=None)
 
-        if search:
-            import re
-            pattern = re.compile(search, re.IGNORECASE)
-            docs = [o for o in docs if any(pattern.search(str(_raw_value(o, *fields) or ""))
-                    for fields in [
-                        ("order_number", "orderNumber"),
-                        ("customer_name", "customerName"),
-                        ("customer_email", "customerEmail"),
-                        ("customer_phone", "customerPhone"),
-                        ("device_name", "deviceName"),
-                    ])]
+        docs = _filter_docs(
+            docs,
+            status=status,
+            source=source,
+            payment_status=paymentStatus or payment_status,
+            grade=grade,
+            network=network,
+            postage_method=postageMethod or postage_method,
+            partner=partner,
+            date_from=dateFrom or date_from,
+            date_to=dateTo or date_to,
+            min_price=minPrice if minPrice is not None else min_price,
+            max_price=maxPrice if maxPrice is not None else max_price,
+            search=search,
+        )
 
         requested_sort = sortBy or sort_by or "createdAt"
         reverse = (sortOrder or sort_order) == "desc"
@@ -397,6 +409,109 @@ def _raw_value(doc: dict, *keys: str):
     return None
 
 
+def _clean_enum_value(value: Any) -> str:
+    """Normalize a status-like value for comparison: strip 'OrderStatus.'
+    style enum-repr prefixes that leaked into old rows, uppercase, and use
+    underscores so 'Payout Ready' == 'PAYOUT_READY'."""
+    s = str(value or "")
+    if "." in s:
+        s = s.split(".", 1)[1]
+    return s.strip().upper().replace(" ", "_")
+
+
+def _parse_date_param(value: Optional[str], end_of_day: bool = False) -> Optional[float]:
+    """Parse an ISO date/datetime query param into a timestamp. A date-only
+    value used as a range end is pushed to 23:59:59 so 'to 02/07' includes
+    orders placed that day."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if end_of_day and len(str(value).strip()) <= 10:
+        dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return dt.timestamp()
+
+
+_SEARCH_FIELDS = [
+    ("order_number", "orderNumber"),
+    ("customer_name", "customerName"),
+    ("customer_email", "customerEmail"),
+    ("customer_phone", "customerPhone"),
+    ("device_name", "deviceName"),
+    ("postcode",),
+    ("partner_name", "partnerName"),
+]
+
+
+def _filter_docs(
+    docs: list,
+    *,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    payment_status: Optional[str] = None,
+    grade: Optional[str] = None,
+    network: Optional[str] = None,
+    postage_method: Optional[str] = None,
+    partner: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    search: Optional[str] = None,
+) -> list:
+    """Apply the admin list/export filters to raw Mongo docs. Runs in Python
+    rather than in the Mongo query because legacy rows mix snake_case and
+    camelCase keys — _raw_value is the only accessor that sees both."""
+    import re
+    ts_from = _parse_date_param(date_from)
+    ts_to = _parse_date_param(date_to, end_of_day=True)
+    pattern = re.compile(re.escape(search), re.IGNORECASE) if search else None
+
+    out = []
+    for doc in docs:
+        if status and _clean_enum_value(_raw_value(doc, "status")) != _clean_enum_value(status):
+            continue
+        if source and _clean_enum_value(_raw_value(doc, "source")) != _clean_enum_value(source):
+            continue
+        if payment_status and _clean_enum_value(_raw_value(doc, "payment_status", "paymentStatus")) != _clean_enum_value(payment_status):
+            continue
+        if grade and _clean_enum_value(_raw_value(doc, "device_grade", "deviceGrade")) != _clean_enum_value(grade):
+            continue
+        if network and str(_raw_value(doc, "network") or "").strip().lower() != network.strip().lower():
+            continue
+        if postage_method and str(_raw_value(doc, "postage_method", "postageMethod") or "").strip().lower() != postage_method.strip().lower():
+            continue
+        if partner and str(_raw_value(doc, "partner_name", "partnerName") or "").strip().lower() != partner.strip().lower():
+            continue
+        if ts_from is not None or ts_to is not None:
+            created = _coerce_sort_datetime(_raw_value(doc, "created_at", "createdAt"))
+            if ts_from is not None and created < ts_from:
+                continue
+            if ts_to is not None and created > ts_to:
+                continue
+        if min_price is not None or max_price is not None:
+            price = _raw_value(doc, "final_price", "finalPrice")
+            if price is None:
+                price = _raw_value(doc, "offered_price", "offeredPrice")
+            try:
+                price = float(price)
+            except (TypeError, ValueError):
+                price = 0.0
+            if min_price is not None and price < min_price:
+                continue
+            if max_price is not None and price > max_price:
+                continue
+        if pattern and not any(
+            pattern.search(str(_raw_value(doc, *fields) or ""))
+            for fields in _SEARCH_FIELDS
+        ):
+            continue
+        out.append(doc)
+    return out
+
+
 def _coerce_sort_datetime(value: Any) -> float:
     if isinstance(value, datetime):
         return value.timestamp()
@@ -469,6 +584,30 @@ def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
         offer_responded_at = _raw_value(counter, "responded_at", "respondedAt")
         if isinstance(offer_responded_at, datetime):
             offer_responded_at = offer_responded_at.isoformat()
+    # Emit payout/counter-offer under BOTH key styles, like every other field
+    # here — the React admin panel reads camelCase (payoutDetails), and the
+    # list endpoint previously only sent snake_case, so bank details filled by
+    # the customer showed up blank in the admin orders list.
+    payout_data = {
+        "account_name": _raw_value(payout, "account_name", "accountName"), "accountName": _raw_value(payout, "account_name", "accountName"),
+        "account_number": _raw_value(payout, "account_number", "accountNumber"), "accountNumber": _raw_value(payout, "account_number", "accountNumber"),
+        "sort_code": _raw_value(payout, "sort_code", "sortCode"), "sortCode": _raw_value(payout, "sort_code", "sortCode"),
+    } if payout else None
+    counter_data = {
+        "has_counter_offer": (
+            _raw_value(counter, "has_counter_offer", "hasCounterOffer")
+            or bool(latest_offer) or False
+        ),
+        "hasCounterOffer": (
+            _raw_value(counter, "has_counter_offer", "hasCounterOffer")
+            or bool(latest_offer) or False
+        ),
+        "latest_offer_id": _raw_value(counter, "latest_offer_id", "latestOfferId"), "latestOfferId": _raw_value(counter, "latest_offer_id", "latestOfferId"),
+        "status": offer_status or _raw_value(counter, "status"),
+        "revised_price": offer_revised_price, "revisedPrice": offer_revised_price,
+        "responded_at": offer_responded_at, "respondedAt": offer_responded_at,
+        "reason": offer_reason,
+    } if (counter or latest_offer) else None
     return {
         "id": str(doc.get("_id") or doc.get("id")), "_id": str(doc.get("_id") or doc.get("id")),
         "order_number": _raw_value(doc, "order_number", "orderNumber") or "", "orderNumber": _raw_value(doc, "order_number", "orderNumber") or "",
@@ -490,26 +629,8 @@ def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
         "status": _raw_value(doc, "status") or "PENDING",
         "payment_method": _raw_value(doc, "payment_method", "paymentMethod") or "bank", "paymentMethod": _raw_value(doc, "payment_method", "paymentMethod") or "bank",
         "payment_status": _raw_value(doc, "payment_status", "paymentStatus") or "PENDING", "paymentStatus": _raw_value(doc, "payment_status", "paymentStatus") or "PENDING",
-        "payout_details": {
-            "account_name": _raw_value(payout, "account_name", "accountName"), "accountName": _raw_value(payout, "account_name", "accountName"),
-            "account_number": _raw_value(payout, "account_number", "accountNumber"), "accountNumber": _raw_value(payout, "account_number", "accountNumber"),
-            "sort_code": _raw_value(payout, "sort_code", "sortCode"), "sortCode": _raw_value(payout, "sort_code", "sortCode"),
-        } if payout else None,
-        "counter_offer": {
-            "has_counter_offer": (
-                _raw_value(counter, "has_counter_offer", "hasCounterOffer")
-                or bool(latest_offer) or False
-            ),
-            "hasCounterOffer": (
-                _raw_value(counter, "has_counter_offer", "hasCounterOffer")
-                or bool(latest_offer) or False
-            ),
-            "latest_offer_id": _raw_value(counter, "latest_offer_id", "latestOfferId"), "latestOfferId": _raw_value(counter, "latest_offer_id", "latestOfferId"),
-            "status": offer_status or _raw_value(counter, "status"),
-            "revised_price": offer_revised_price, "revisedPrice": offer_revised_price,
-            "responded_at": offer_responded_at, "respondedAt": offer_responded_at,
-            "reason": offer_reason,
-        } if (counter or latest_offer) else None,
+        "payout_details": payout_data, "payoutDetails": payout_data,
+        "counter_offer": counter_data, "counterOffer": counter_data,
         "notes": _raw_value(doc, "notes"),
         "admin_notes": _raw_value(doc, "admin_notes", "adminNotes"), "adminNotes": _raw_value(doc, "admin_notes", "adminNotes"),
         "tracking_number": _raw_value(doc, "tracking_number", "trackingNumber"), "trackingNumber": _raw_value(doc, "tracking_number", "trackingNumber"),

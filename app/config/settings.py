@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # Defaults to the support inbox so notifications never silently fall back to a
     # personal address; override via the ADMIN_EMAILS env var (comma-separated).
     ADMIN_EMAILS: str = "support@cashmymobile.co.uk"  # comma-separated
+    # Emails allowed to log into the admin panel (OTP login). Managed via the
+    # ADMIN_LOGIN_EMAILS env var (comma-separated); also seeded as Admin
+    # documents at startup.
+    ADMIN_LOGIN_EMAILS: str = "sellyourfone@gmail.com,me.khushnood22@gmail.com,thekhushnoor@gmail.com,hameeduk1@yahoo.co.uk"
     OTP_EXPIRY_MINUTES: int = 10
 
     # AWS General (used for SES)
@@ -88,6 +92,16 @@ class Settings(BaseSettings):
             return part or "test"
         except Exception:
             return "test"
+
+    @property
+    def admin_login_emails_list(self) -> list:
+        """ADMIN_LOGIN_EMAILS as a normalized (lowercased, deduped) list."""
+        seen = []
+        for e in self.ADMIN_LOGIN_EMAILS.split(","):
+            email = e.strip().lower()
+            if email and email not in seen:
+                seen.append(email)
+        return seen
 
     @property
     def cors_origins_list(self) -> list:

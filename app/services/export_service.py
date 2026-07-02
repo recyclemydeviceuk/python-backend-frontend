@@ -49,6 +49,63 @@ async def export_orders_csv(orders: List[Order]) -> bytes:
     return output.getvalue().encode("utf-8")
 
 
+def orders_csv_from_rows(rows: list) -> bytes:
+    """Serialize already-serialized order dicts (from the orders router's
+    _serialize_raw) to CSV. Includes every customer-facing field — contact,
+    address, device, prices, counter offer, and the bank details the payments
+    team needs to make the transfer."""
+    output = io.StringIO()
+    fieldnames = [
+        "Order Number", "Source", "Partner", "Status", "Customer Name",
+        "Customer Phone", "Customer Email", "Address", "City", "Postcode",
+        "Device Name", "Network", "Storage", "Device Grade",
+        "Offered Price", "Final Price", "Revised Price (Counter Offer)",
+        "Counter Offer Status", "Payment Method", "Payment Status",
+        "Account Name", "Account Number", "Sort Code",
+        "Postage Method", "Tracking Number", "Transaction ID",
+        "Created At", "Updated At",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+
+    for row in rows:
+        payout = row.get("payoutDetails") or {}
+        counter = row.get("counterOffer") or {}
+        writer.writerow({
+            "Order Number": row.get("orderNumber") or "",
+            "Source": row.get("source") or "",
+            "Partner": row.get("partnerName") or "",
+            "Status": row.get("status") or "",
+            "Customer Name": row.get("customerName") or "",
+            "Customer Phone": row.get("customerPhone") or "",
+            "Customer Email": row.get("customerEmail") or "",
+            "Address": row.get("customerAddress") or "",
+            "City": row.get("city") or "",
+            "Postcode": row.get("postcode") or "",
+            "Device Name": row.get("deviceName") or "",
+            "Network": row.get("network") or "",
+            "Storage": row.get("storage") or "",
+            "Device Grade": row.get("deviceGrade") or "",
+            "Offered Price": row.get("offeredPrice", ""),
+            "Final Price": row.get("finalPrice") if row.get("finalPrice") is not None else "",
+            "Revised Price (Counter Offer)": counter.get("revisedPrice") if counter.get("revisedPrice") is not None else "",
+            "Counter Offer Status": counter.get("status") or "",
+            "Payment Method": row.get("paymentMethod") or "",
+            "Payment Status": row.get("paymentStatus") or "",
+            "Account Name": payout.get("accountName") or "",
+            "Account Number": payout.get("accountNumber") or "",
+            "Sort Code": payout.get("sortCode") or "",
+            "Postage Method": row.get("postageMethod") or "",
+            "Tracking Number": row.get("trackingNumber") or "",
+            "Transaction ID": row.get("transactionId") or "",
+            "Created At": row.get("createdAt") or "",
+            "Updated At": row.get("updatedAt") or "",
+        })
+
+    logger.info(f"Exported {len(rows)} orders to CSV (filtered export)")
+    return output.getvalue().encode("utf-8")
+
+
 async def export_devices_csv(devices: list) -> bytes:
     """Serialize devices to CSV bytes."""
     output = io.StringIO()

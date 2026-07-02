@@ -86,6 +86,32 @@ def _clean_status_string(raw) -> str:
     return _LEGACY_TO_CANONICAL_STATUS.get(s.lower(), s)
 
 
+def _clean_payment_status_string(raw_snake, raw_camel, order_status) -> str:
+    """Return the canonical payment status (PENDING / PAID) for an order row.
+
+    Payment status must NEVER go through _LEGACY_TO_CANONICAL_STATUS — that
+    map is for ORDER statuses and turns 'pending' into 'RECEIVED', which is
+    exactly the corruption an earlier version of this migration wrote into
+    every row's payment_status. Prefer whichever stored key already holds a
+    valid value; otherwise derive from the workflow status (PAID → PAID).
+    """
+    for raw in (raw_snake, raw_camel):
+        if raw is None:
+            continue
+        s = str(raw).strip()
+        for prefix in ("PaymentStatus.", "OrderStatus."):
+            if s.startswith(prefix):
+                s = s[len(prefix):]
+        s = s.upper()
+        if s in {"PENDING", "PAID"}:
+            # The app flips payment to PAID when the order is marked PAID —
+            # honour that even if a stale PENDING is stored.
+            if s == "PENDING" and str(order_status or "").upper() == "PAID":
+                return "PAID"
+            return s
+    return "PAID" if str(order_status or "").upper() == "PAID" else "PENDING"
+
+
 async def _seed_workflow_statuses():
     """End-to-end status migration. Runs on every startup, idempotent.
 
@@ -110,14 +136,20 @@ async def _seed_workflow_statuses():
     cursor = orders_coll.find({"status": {"$exists": True}})
     async for doc in cursor:
         raw_status = doc.get("status")
-        raw_pay = doc.get("payment_status") or doc.get("paymentStatus")
         new_status = _clean_status_string(raw_status) if raw_status else raw_status
-        new_pay = _clean_status_string(raw_pay) if raw_pay else raw_pay
+        # Payment status gets its own cleaner (NOT the order-status legacy
+        # map) and is written under BOTH key styles so legacy camelCase rows
+        # and Python snake_case rows can never diverge again.
+        new_pay = _clean_payment_status_string(
+            doc.get("payment_status"), doc.get("paymentStatus"),
+            new_status or raw_status,
+        )
         updates = {}
         if new_status and new_status != raw_status:
             updates["status"] = new_status
-        if new_pay and new_pay != raw_pay:
+        if new_pay != doc.get("payment_status") or new_pay != doc.get("paymentStatus"):
             updates["payment_status"] = new_pay
+            updates["paymentStatus"] = new_pay
         if updates:
             await orders_coll.update_one({"_id": doc["_id"]}, {"$set": updates})
             cleaned += 1
@@ -208,9 +240,8 @@ async def _seed_workflow_statuses():
 async def _seed_admins():
     from app.models.admin import Admin
     from app.config.constants import AdminRole
-    # Hardcoded admin emails
-    emails = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com", "Hameeduk1@yahoo.co.uk"]
-    for email in emails:
+    # Admin login emails come from ADMIN_LOGIN_EMAILS in .env (comma-separated)
+    for email in settings.admin_login_emails_list:
         exists = await Admin.find_one(Admin.email == email)
         if not exists:
             username = email.split("@")[0]

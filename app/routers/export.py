@@ -8,6 +8,7 @@ from app.models.device import Device
 from app.models.pricing import Pricing
 from app.services.export_service import (
     export_orders_csv,
+    orders_csv_from_rows,
     export_devices_csv,
     export_pricing_csv,
     export_analytics_csv,
@@ -22,28 +23,53 @@ router = APIRouter(prefix="/export", tags=["Export"])
 async def export_orders(
     status: Optional[str] = None,
     source: Optional[str] = None,
+    payment_status: Optional[str] = None,
+    paymentStatus: Optional[str] = None,
+    grade: Optional[str] = None,
+    network: Optional[str] = None,
+    postage_method: Optional[str] = None,
+    postageMethod: Optional[str] = None,
+    partner: Optional[str] = None,
+    date_from: Optional[str] = None,
+    dateFrom: Optional[str] = None,
+    date_to: Optional[str] = None,
+    dateTo: Optional[str] = None,
+    min_price: Optional[float] = None,
+    minPrice: Optional[float] = None,
+    max_price: Optional[float] = None,
+    maxPrice: Optional[float] = None,
+    search: Optional[str] = None,
+    # Legacy param names, kept so existing bookmarks/integrations don't break.
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ):
-    filters = []
-    if status:
-        filters.append(Order.status == status)
-    if source:
-        filters.append(Order.source == source)
-    orders = await Order.find(*filters).sort(-Order.created_at).to_list()
+    # Reuse the exact filter + serialization pipeline of GET /api/orders so
+    # the CSV always matches what the admin sees in the panel.
+    from app.routers.orders import _filter_docs, _serialize_raw, _coerce_sort_datetime, _raw_value
 
-    if start_date or end_date:
-        def in_range(o):
-            if start_date and o.created_at < datetime.fromisoformat(start_date):
-                return False
-            if end_date and o.created_at > datetime.fromisoformat(end_date):
-                return False
-            return True
-        orders = [o for o in orders if in_range(o)]
+    collection = Order.get_motor_collection()
+    docs = await collection.find({}).to_list(length=None)
+    docs = _filter_docs(
+        docs,
+        status=status,
+        source=source,
+        payment_status=paymentStatus or payment_status,
+        grade=grade,
+        network=network,
+        postage_method=postageMethod or postage_method,
+        partner=partner,
+        date_from=dateFrom or date_from or start_date,
+        date_to=dateTo or date_to or end_date,
+        min_price=minPrice if minPrice is not None else min_price,
+        max_price=maxPrice if maxPrice is not None else max_price,
+        search=search,
+    )
+    docs.sort(key=lambda d: _coerce_sort_datetime(_raw_value(d, "created_at", "createdAt")), reverse=True)
 
-    csv_bytes = await export_orders_csv(orders)
+    rows = [_serialize_raw(d) for d in docs]
+    csv_bytes = orders_csv_from_rows(rows)
     filename = f"orders_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.csv"
-    logger.info(f"Orders exported: {len(orders)} orders")
+    logger.info(f"Orders exported: {len(rows)} orders")
     return Response(
         content=csv_bytes,
         media_type="text/csv",

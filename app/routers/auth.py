@@ -11,16 +11,12 @@ from app.utils.logger import logger
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# Hardcoded admin emails
-ALLOWED_ADMIN_EMAILS = ["sellyourfone@gmail.com", "thekhushnoor@gmail.com", "hameeduk1@yahoo.co.uk"]
-
-
 @router.post("/request-otp", summary="Request OTP for admin login")
 async def request_otp(body: RequestOTPSchema):
     email = body.email.lower()
 
-    # Check if email is in allowed list
-    if email not in ALLOWED_ADMIN_EMAILS:
+    # Check if email is in allowed list (ADMIN_LOGIN_EMAILS in .env)
+    if email not in settings.admin_login_emails_list:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES["EMAIL_NOT_AUTHORIZED"])
 
     otp_code = await create_and_send_otp(email)
@@ -36,8 +32,8 @@ async def request_otp(body: RequestOTPSchema):
 async def verify_otp_endpoint(body: VerifyOTPSchema):
     email = body.email.lower()
 
-    # Check if email is allowed
-    if email not in ALLOWED_ADMIN_EMAILS:
+    # Check if email is allowed (ADMIN_LOGIN_EMAILS in .env)
+    if email not in settings.admin_login_emails_list:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not authorized")
 
     try:
