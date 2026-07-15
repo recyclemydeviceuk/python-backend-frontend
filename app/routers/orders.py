@@ -176,6 +176,29 @@ async def update_order(order_id: str, body: UpdateOrderSchema):
         # the older revised amount.
         if order.counter_offer and order.counter_offer.has_counter_offer:
             order.counter_offer.revised_price = body.final_price
+            # The standalone CounterOffer document must be updated too: the
+            # admin GET endpoints join the latest offer back in and read its
+            # revised_price, and the customer's public review page loads the
+            # same document by token. Leaving it stale meant a manual edit
+            # (e.g. £415 → £450) saved fine but every screen kept rendering
+            # the old amount from this document.
+            try:
+                from app.models.counter_offer import CounterOffer
+                latest = await CounterOffer.find(
+                    CounterOffer.order_id == str(order.id)
+                ).sort(-CounterOffer.created_at).limit(1).to_list()
+                if latest:
+                    offer_doc = latest[0]
+                    offer_doc.revised_price = float(body.final_price)
+                    if body.price_revision_reason:
+                        offer_doc.reason = body.price_revision_reason
+                    offer_doc.updated_at = datetime.utcnow()
+                    await offer_doc.save()
+            except Exception as e:
+                logger.warning(
+                    f"Manual price edit saved on order {order.order_number} but "
+                    f"the counter offer document could not be synced: {e}"
+                )
     if body.price_revision_reason is not None:
         order.price_revision_reason = body.price_revision_reason
     if body.tracking_number is not None:
@@ -571,11 +594,15 @@ def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
         if isinstance(offer_responded_at, datetime):
             offer_responded_at = offer_responded_at.isoformat()
         offer_reason = latest_offer.get("reason")
-    # Fall back to the values persisted on the order's embedded counter_offer.
-    # These are written the moment a counter offer is SENT, so the revised
-    # price is known even if the join to the counteroffers collection misses.
-    if offer_revised_price is None:
-        offer_revised_price = _raw_value(counter, "revised_price", "revisedPrice")
+    # The order's embedded counter_offer.revised_price wins over the joined
+    # document: it is rewritten on every price change (offer sent, accepted,
+    # declined AND manual admin edits), so it is never staler than the
+    # standalone offer document — whereas historic rows exist where a manual
+    # edit updated only the order and the joined document still holds the old
+    # amount, which used to mask the edit on every screen.
+    embed_revised_price = _raw_value(counter, "revised_price", "revisedPrice")
+    if embed_revised_price is not None:
+        offer_revised_price = embed_revised_price
     if offer_status is None:
         offer_status = _raw_value(counter, "status")
     if offer_reason is None:
@@ -665,11 +692,13 @@ def _serialize(o: Order, latest_offer: Optional[dict] = None) -> dict:
             if isinstance(offer_responded_at, datetime):
                 offer_responded_at = offer_responded_at.isoformat()
             offer_reason = latest_offer.get("reason")
-        # Fall back to the values persisted on the order's embedded
-        # counter_offer (written the moment the offer is SENT).
+        # The embedded counter_offer values win over the joined document —
+        # they are rewritten on every price change including manual admin
+        # edits, so they are never staler (see _serialize_raw for details).
         if counter is not None:
-            if offer_revised_price is None:
-                offer_revised_price = getattr(counter, "revised_price", None)
+            embed_revised_price = getattr(counter, "revised_price", None)
+            if embed_revised_price is not None:
+                offer_revised_price = embed_revised_price
             if offer_status is None:
                 offer_status = getattr(counter, "status", None)
             if offer_reason is None:

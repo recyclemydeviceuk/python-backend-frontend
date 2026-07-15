@@ -166,13 +166,25 @@ async def accept_offer(token: str):
     offer = await CounterOffer.find_one(CounterOffer.review_token == token)
     if not offer:
         _err(404, "This counter offer link is invalid or has expired.")
+    # Idempotent: mobile customers often lose the response mid-flight and tap
+    # Accept again. If the offer is already accepted, repeating the same action
+    # is a success, not an error — previously every retry got a 400 and the
+    # customer was stuck on "Failed to process your response" forever.
+    if offer.status == CounterOfferStatus.ACCEPTED:
+        return success_response(
+            {"counter_offer": _serialize(offer)},
+            "Counter offer accepted successfully.",
+        )
     if offer.status != CounterOfferStatus.PENDING:
         _err(400,
-             "This counter offer has already been responded to and cannot be changed.")
+             "You have already declined this offer, so it can no longer be "
+             "accepted online. Please message us on WhatsApp (+44 7938 361920) "
+             "and we'll sort it out for you.")
     if offer.is_expired():
         _err(400,
              "This counter offer has expired (offers are valid for 48 hours). "
-             "Please contact support if you still wish to proceed.")
+             "Please message us on WhatsApp (+44 7938 361920) if you still "
+             "wish to accept and we'll reopen it for you.")
 
     now = datetime.utcnow()
     offer.status = CounterOfferStatus.ACCEPTED
@@ -181,23 +193,36 @@ async def accept_offer(token: str):
     offer.updated_at = now
     await offer.save()
 
-    order = await Order.get(offer.order_id)
+    # From here on the acceptance IS recorded — never bubble a failure in the
+    # order bookkeeping or the emails up to the customer as an error, or they
+    # retry an action that already succeeded.
+    try:
+        order = await Order.get(offer.order_id)
+    except Exception as e:
+        logger.exception(f"Counter offer accepted but order lookup failed: {e}")
+        order = None
     if order:
-        order.final_price = offer.revised_price
-        if order.counter_offer:
-            order.counter_offer.status = CounterOfferStatus.ACCEPTED
-            order.counter_offer.revised_price = float(offer.revised_price)
-            order.counter_offer.reason = offer.reason
-            order.counter_offer.responded_at = now
-        # Move the order into PRICE_REVISED so the admin list shows the
-        # change immediately — without this, accepted offers sat under
-        # whatever status the order was in (e.g. DEVICE_RECEIVED) and the
-        # revised price was effectively invisible on the main page.
-        order.status = OrderStatus.PRICE_REVISED
-        order.payment_status = PaymentStatus.PENDING
-        order.price_revision_reason = offer.reason
-        order.updated_at = now
-        await order.save()
+        try:
+            order.final_price = offer.revised_price
+            if order.counter_offer:
+                order.counter_offer.status = CounterOfferStatus.ACCEPTED
+                order.counter_offer.revised_price = float(offer.revised_price)
+                order.counter_offer.reason = offer.reason
+                order.counter_offer.responded_at = now
+            # Move the order into PRICE_REVISED so the admin list shows the
+            # change immediately — without this, accepted offers sat under
+            # whatever status the order was in (e.g. DEVICE_RECEIVED) and the
+            # revised price was effectively invisible on the main page.
+            order.status = OrderStatus.PRICE_REVISED
+            order.payment_status = PaymentStatus.PENDING
+            order.price_revision_reason = offer.reason
+            order.updated_at = now
+            await order.save()
+        except Exception as e:
+            logger.exception(
+                f"Counter offer accepted but parent order update failed for "
+                f"{offer.order_number}: {e}"
+            )
         try:
             await send_counter_offer_accepted_email(order, offer)
         except Exception as e:
@@ -219,10 +244,22 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
     offer = await CounterOffer.find_one(CounterOffer.review_token == token)
     if not offer:
         _err(404, "This counter offer link is invalid or has expired.")
+    # Idempotent for retries, mirroring accept_offer.
+    if offer.status == CounterOfferStatus.DECLINED:
+        return success_response(
+            {"counter_offer": _serialize(offer)},
+            "Counter offer declined.",
+        )
     if offer.status != CounterOfferStatus.PENDING:
-        _err(400, "This counter offer has already been responded to.")
+        _err(400,
+             "You have already accepted this offer, so it can no longer be "
+             "declined online. Please message us on WhatsApp (+44 7938 361920) "
+             "if you've changed your mind.")
     if offer.is_expired():
-        _err(400, "This counter offer has expired.")
+        _err(400,
+             "This counter offer has expired (offers are valid for 48 hours). "
+             "Please message us on WhatsApp (+44 7938 361920) and we'll help "
+             "you from there.")
 
     now = datetime.utcnow()
     offer.status = CounterOfferStatus.DECLINED
@@ -233,26 +270,38 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
         offer.customer_feedback = body.feedback.strip()
     await offer.save()
 
-    order = await Order.get(offer.order_id)
+    # The decline IS recorded past this point — order bookkeeping and emails
+    # must not surface as a customer-facing error (mirrors accept_offer).
+    try:
+        order = await Order.get(offer.order_id)
+    except Exception as e:
+        logger.exception(f"Counter offer declined but order lookup failed: {e}")
+        order = None
     if order:
-        if order.counter_offer:
-            order.counter_offer.status = CounterOfferStatus.DECLINED
-            order.counter_offer.revised_price = float(offer.revised_price)
-            order.counter_offer.reason = offer.reason
-            order.counter_offer.responded_at = now
-        # Keep final_price pinned to the revised amount on decline too, so the
-        # order's price column keeps showing what we offered (the order stays
-        # in PRICE_REVISED for manual WhatsApp follow-up). Mirrors accept_offer.
-        order.final_price = float(offer.revised_price)
-        # Do NOT auto-cancel. Keep the order visible on the admin back-end under
-        # PRICE_REVISED with the revised price + reason and a "Declined" tag, so
-        # staff can follow up (e.g. on WhatsApp) and choose the final status
-        # themselves. Auto-cancelling here hid the revised price and slammed the
-        # order to Cancelled before staff could act.
-        order.status = OrderStatus.PRICE_REVISED
-        order.price_revision_reason = offer.reason
-        order.updated_at = now
-        await order.save()
+        try:
+            if order.counter_offer:
+                order.counter_offer.status = CounterOfferStatus.DECLINED
+                order.counter_offer.revised_price = float(offer.revised_price)
+                order.counter_offer.reason = offer.reason
+                order.counter_offer.responded_at = now
+            # Keep final_price pinned to the revised amount on decline too, so the
+            # order's price column keeps showing what we offered (the order stays
+            # in PRICE_REVISED for manual WhatsApp follow-up). Mirrors accept_offer.
+            order.final_price = float(offer.revised_price)
+            # Do NOT auto-cancel. Keep the order visible on the admin back-end under
+            # PRICE_REVISED with the revised price + reason and a "Declined" tag, so
+            # staff can follow up (e.g. on WhatsApp) and choose the final status
+            # themselves. Auto-cancelling here hid the revised price and slammed the
+            # order to Cancelled before staff could act.
+            order.status = OrderStatus.PRICE_REVISED
+            order.price_revision_reason = offer.reason
+            order.updated_at = now
+            await order.save()
+        except Exception as e:
+            logger.exception(
+                f"Counter offer declined but parent order update failed for "
+                f"{offer.order_number}: {e}"
+            )
         # No automatic customer email on decline — declines are handled manually
         # (WhatsApp). Admins are still notified out-of-band below.
         try:
@@ -328,6 +377,10 @@ def _serialize(o: CounterOffer) -> dict:
         ],
         "review_token": o.review_token, "reviewToken": o.review_token,
         "token": o.review_token,  # backwards-compat
+        # Let the public review page know up-front whether the offer can still
+        # be actioned, so it renders an "expired" screen instead of Accept /
+        # Decline buttons that are guaranteed to fail.
+        "is_expired": o.is_expired(), "isExpired": o.is_expired(),
         "customer_response": o.customer_response, "customerResponse": o.customer_response,
         "customer_feedback": o.customer_feedback, "customerFeedback": o.customer_feedback,
         "expires_at": o.expires_at.isoformat(), "expiresAt": o.expires_at.isoformat(),

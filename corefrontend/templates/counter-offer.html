@@ -80,6 +80,27 @@
       const deviceName = offer.deviceName || offer.device_name || order.deviceName || order.device_name || 'Your Device';
       const customerName = offer.customerName || offer.customer_name || order.customerName || order.customer_name || 'Customer';
 
+      // Expired offers can no longer be actioned — show a clear screen with a
+      // WhatsApp CTA instead of Accept/Decline buttons that are guaranteed to
+      // fail with an error the customer can't act on.
+      const expired = offer.isExpired === true || offer.is_expired === true;
+      if (expired) {
+        root.innerHTML = `
+          <div class="counter-card" style="text-align:center;">
+            <div style="width:4rem;height:4rem;background:#fffbeb;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+              <svg style="width:2rem;height:2rem;color:#f59e0b" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <h2 style="font-size:1.5rem;font-weight:800;color:#111827;margin-bottom:.5rem;">This Offer Has Expired</h2>
+            <p style="color:#6b7280;margin-bottom:1.5rem;font-size:.9375rem;">Our revised offer of <strong>£${counterPrice}</strong> for your ${deviceName} was valid for 48 hours. Don't worry — message us on WhatsApp and we'll reopen it for you.</p>
+            <a href="https://wa.me/447938361920" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.5rem;background:#25D366;color:#fff;font-weight:700;padding: .875rem 1.75rem;border-radius:1rem;text-decoration:none;font-size:1rem;margin-bottom:1rem;">
+              <svg style="width:1.25rem;height:1.25rem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20.52 3.48A11.78 11.78 0 0012.05 0C5.5 0 .2 5.3.2 11.85c0 2.09.55 4.13 1.6 5.92L0 24l6.4-1.68a11.85 11.85 0 005.65 1.44h.01c6.55 0 11.85-5.3 11.85-11.85 0-3.17-1.23-6.15-3.49-8.43z"/></svg>
+              Message us on WhatsApp
+            </a>
+            <p style="font-size:.75rem;color:#9ca3af;">or email <a href="mailto:{{ support_email }}" style="color:#dc2626;font-weight:600;">{{ support_email }}</a></p>
+          </div>`;
+        return;
+      }
+
       root.innerHTML = `
         <div class="counter-card">
           <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:1rem;padding:1.75rem;text-align:center;margin-bottom:1.25rem;">
@@ -135,6 +156,9 @@
         errorDiv.style.display = 'none';
         btn.disabled = true;
         otherBtn.disabled = true;
+        // Remember the original label so a failure can restore it — before
+        // this, the button stayed stuck on "Processing..." forever.
+        const originalHtml = btn.innerHTML;
         btn.innerHTML = `<div style="width:1.25rem;height:1.25rem;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;"></div> Processing...`;
         try {
           const res = action === 'accept' ? await counterOfferApi.accept(token) : await counterOfferApi.reject(token);
@@ -152,15 +176,17 @@
               </div>`;
           } else {
             errorDiv.style.display = 'block';
-            document.getElementById('offer-error-text').textContent = res.message || 'Failed to process your response. Please try again.';
+            document.getElementById('offer-error-text').textContent = res.message || res.error || 'Failed to process your response. Please try again or message us on WhatsApp: +44 7938 361920.';
             btn.disabled = false;
             otherBtn.disabled = false;
+            btn.innerHTML = originalHtml;
           }
         } catch (err) {
           errorDiv.style.display = 'block';
-          document.getElementById('offer-error-text').textContent = 'An error occurred. Please try again or contact us.';
+          document.getElementById('offer-error-text').textContent = 'An error occurred. Please try again or message us on WhatsApp: +44 7938 361920.';
           btn.disabled = false;
           otherBtn.disabled = false;
+          btn.innerHTML = originalHtml;
         }
       };
 

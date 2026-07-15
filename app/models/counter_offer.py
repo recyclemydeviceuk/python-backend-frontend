@@ -1,7 +1,7 @@
 from beanie import Document
 from pydantic import Field, BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 
@@ -29,6 +29,11 @@ class CounterOffer(Document):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     def is_expired(self) -> bool:
+        # expires_at is usually naive UTC, but documents written by other
+        # services may carry a timezone — comparing naive vs aware raises
+        # TypeError (a 500 for the customer), so match whichever form we get.
+        if self.expires_at.tzinfo is not None:
+            return datetime.now(timezone.utc) > self.expires_at
         return datetime.utcnow() > self.expires_at
 
     class Settings:

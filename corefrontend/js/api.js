@@ -20,7 +20,19 @@ async function apiFetch(path, options = {}) {
     } catch (parseErr) {
       data = { success: res.ok, message: res.statusText };
     }
+    // FastAPI nests HTTPException bodies under "detail" — unwrap it so every
+    // caller can read res.message directly. Without this, customers only ever
+    // saw the generic "Failed to process your response" fallback instead of
+    // the real reason (offer expired, already responded, etc.).
+    if (data && data.detail !== undefined && data.success === undefined) {
+      if (typeof data.detail === 'object' && data.detail !== null) {
+        data = { success: false, ...data.detail };
+      } else {
+        data = { success: false, message: String(data.detail), error: String(data.detail) };
+      }
+    }
     if (!res.ok && data.success === undefined) data.success = false;
+    if (!res.ok && !data.message && data.error) data.message = data.error;
     return data;
   } catch (err) {
     console.error(`API error [${path}]:`, err);
