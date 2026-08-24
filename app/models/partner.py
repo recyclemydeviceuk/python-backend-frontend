@@ -11,6 +11,9 @@ class Partner(Document):
     key_hash: str = ""
     key_prefix: str = ""
     is_active: bool = True
+    # A test/UAT partner: orders created with this partner's key are marked
+    # is_test and kept out of live reporting and customer emails.
+    is_test: bool = False
     allowed_ips: List[str] = Field(default_factory=list)
     rate_limit: int = 100
     notes: Optional[str] = None

@@ -1,30 +1,34 @@
 from datetime import datetime, timedelta, timezone
-from app.models.order import Order
+from app.models.order import Order, NOT_TEST_FILTER
 from app.models.device import Device
 from app.models.contact_submission import ContactSubmission
 from app.utils.logger import logger
 
 
 async def get_dashboard_stats() -> dict:
-    """Aggregate stats for the admin dashboard."""
+    """Aggregate stats for the admin dashboard.
+
+    Every query excludes UAT/test orders (NOT_TEST_FILTER) so a partner's test
+    run can never move the numbers the business reads.
+    """
     now = datetime.now(timezone.utc)
     thirty_days_ago = now - timedelta(days=30)
     seven_days_ago = now - timedelta(days=7)
 
-    total_orders = await Order.count()
-    orders_this_month = await Order.find(Order.created_at >= thirty_days_ago).count()
-    orders_this_week = await Order.find(Order.created_at >= seven_days_ago).count()
+    total_orders = await Order.find(NOT_TEST_FILTER).count()
+    orders_this_month = await Order.find({**NOT_TEST_FILTER, "created_at": {"$gte": thirty_days_ago}}).count()
+    orders_this_week = await Order.find({**NOT_TEST_FILTER, "created_at": {"$gte": seven_days_ago}}).count()
 
     # Compare against the canonical .value strings (not the enum object) so
     # the Mongo query matches what's actually stored on each order row.
-    pending = await Order.find(Order.status == "RECEIVED").count()
-    completed = await Order.find(Order.status == "PAID").count()
+    pending = await Order.find({**NOT_TEST_FILTER, "status": "RECEIVED"}).count()
+    completed = await Order.find({**NOT_TEST_FILTER, "status": "PAID"}).count()
     # "Cancelled" renamed to "Returned" — count both across the migration.
-    cancelled = await Order.find({"status": {"$in": ["RETURNED", "CANCELLED"]}}).count()
+    cancelled = await Order.find({**NOT_TEST_FILTER, "status": {"$in": ["RETURNED", "CANCELLED"]}}).count()
 
     # Revenue
     pipeline = [
-        {"$match": {"status": "PAID"}},
+        {"$match": {**NOT_TEST_FILTER, "status": "PAID"}},
         {"$group": {"_id": None, "total": {"$sum": "$final_price"}}},
     ]
     result = await Order.aggregate(pipeline).to_list()
@@ -39,6 +43,7 @@ async def get_dashboard_stats() -> dict:
 
     # Orders by status
     status_pipeline = [
+        {"$match": NOT_TEST_FILTER},
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
@@ -46,7 +51,7 @@ async def get_dashboard_stats() -> dict:
 
     # Recent orders (last 7 days by day)
     daily_pipeline = [
-        {"$match": {"created_at": {"$gte": seven_days_ago}}},
+        {"$match": {**NOT_TEST_FILTER, "created_at": {"$gte": seven_days_ago}}},
         {
             "$group": {
                 "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},

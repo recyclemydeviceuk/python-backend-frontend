@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from app.middleware.auth import get_current_admin
-from app.models.order import Order
+from app.models.order import Order, NOT_TEST_FILTER
 from app.models.device import Device
 from app.services.analytics_service import get_dashboard_stats
 from app.utils.response import success_response
@@ -25,7 +25,7 @@ async def get_dashboard():
 
 @router.get("/recent-orders", summary="Get recent orders", dependencies=[Depends(get_current_admin)])
 async def get_recent_orders(limit: int = Query(10, ge=1, le=100)):
-    orders = await Order.get_motor_collection().find({}).sort("createdAt", -1).limit(limit).to_list(length=limit)
+    orders = await Order.get_motor_collection().find(NOT_TEST_FILTER).sort("createdAt", -1).limit(limit).to_list(length=limit)
     data = [
         {
             "id": str(o.get("_id") or o.get("id")), "_id": str(o.get("_id") or o.get("id")),
@@ -46,11 +46,12 @@ async def get_recent_orders(limit: int = Query(10, ge=1, le=100)):
 @router.get("/status-breakdown", summary="Get order status breakdown", dependencies=[Depends(get_current_admin)])
 async def get_status_breakdown():
     pipeline = [
+        {"$match": NOT_TEST_FILTER},
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
     breakdown = await Order.aggregate(pipeline).to_list()
-    total = await Order.count()
+    total = await Order.find(NOT_TEST_FILTER).count()
     result = [
         {
             "status": item["_id"],
@@ -67,8 +68,8 @@ async def get_revenue_analytics(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ):
-    match_filter = {"status": {"$in": ["COMPLETED", "PAID"]}}
-    all_filter = {}
+    match_filter = {**NOT_TEST_FILTER, "status": {"$in": ["COMPLETED", "PAID"]}}
+    all_filter = dict(NOT_TEST_FILTER)
     if start_date or end_date:
         date_filter = {}
         if start_date:
@@ -89,7 +90,7 @@ async def get_revenue_analytics(
 
     revenue_result = await Order.aggregate(revenue_pipeline).to_list()
     avg_result = await Order.aggregate(avg_pipeline).to_list()
-    paid_count = await Order.find(Order.status.in_(["COMPLETED", "PAID"])).count()
+    paid_count = await Order.find({**NOT_TEST_FILTER, "status": {"$in": ["COMPLETED", "PAID"]}}).count()
 
     return success_response({
         "totalRevenue": revenue_result[0]["total"] if revenue_result else 0,
@@ -110,7 +111,7 @@ async def get_orders_over_time(period: str = Query("30days")):
         group_by = {"$dayOfYear": "$created_at"}
 
     pipeline = [
-        {"$match": {"created_at": {"$gte": start_date}}},
+        {"$match": {**NOT_TEST_FILTER, "created_at": {"$gte": start_date}}},
         {
             "$group": {
                 "_id": group_by,
@@ -127,6 +128,7 @@ async def get_orders_over_time(period: str = Query("30days")):
 @router.get("/top-devices", summary="Get top devices by order count", dependencies=[Depends(get_current_admin)])
 async def get_top_devices(limit: int = Query(10, ge=1, le=50)):
     pipeline = [
+        {"$match": NOT_TEST_FILTER},
         {
             "$group": {
                 "_id": "$device_name",

@@ -45,6 +45,8 @@ async def get_all_orders(
     sortBy: Optional[str] = None,
     sort_order: str = "desc",
     sortOrder: Optional[str] = None,
+    include_test: bool = False,
+    includeTest: Optional[bool] = None,
 ):
     try:
         collection = Order.get_motor_collection()
@@ -64,6 +66,7 @@ async def get_all_orders(
             min_price=minPrice if minPrice is not None else min_price,
             max_price=maxPrice if maxPrice is not None else max_price,
             search=search,
+            include_test=includeTest if includeTest is not None else include_test,
         )
 
         requested_sort = sortBy or sort_by or "createdAt"
@@ -483,6 +486,7 @@ def _filter_docs(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     search: Optional[str] = None,
+    include_test: bool = False,
 ) -> list:
     """Apply the admin list/export filters to raw Mongo docs. Runs in Python
     rather than in the Mongo query because legacy rows mix snake_case and
@@ -494,6 +498,10 @@ def _filter_docs(
 
     out = []
     for doc in docs:
+        # UAT/test orders are hidden unless explicitly requested, so a partner's
+        # test run never looks like real business in the admin panel.
+        if not include_test and bool(_raw_value(doc, "is_test", "isTest")):
+            continue
         if status and _clean_enum_value(_raw_value(doc, "status")) != _clean_enum_value(status):
             continue
         if source and _clean_enum_value(_raw_value(doc, "source")) != _clean_enum_value(source):
@@ -663,6 +671,7 @@ def _serialize_raw(doc: dict, latest_offer: Optional[dict] = None) -> dict:
         "tracking_number": _raw_value(doc, "tracking_number", "trackingNumber"), "trackingNumber": _raw_value(doc, "tracking_number", "trackingNumber"),
         "transaction_id": _raw_value(doc, "transaction_id", "transactionId"), "transactionId": _raw_value(doc, "transaction_id", "transactionId"),
         "partner_name": _raw_value(doc, "partner_name", "partnerName"), "partnerName": _raw_value(doc, "partner_name", "partnerName"),
+        "is_test": bool(_raw_value(doc, "is_test", "isTest")), "isTest": bool(_raw_value(doc, "is_test", "isTest")),
         "price_revision_reason": _raw_value(doc, "price_revision_reason", "priceRevisionReason"), "priceRevisionReason": _raw_value(doc, "price_revision_reason", "priceRevisionReason"),
         "created_at": created_at or datetime.utcnow().isoformat(), "createdAt": created_at or datetime.utcnow().isoformat(),
         "updated_at": updated_at or datetime.utcnow().isoformat(), "updatedAt": updated_at or datetime.utcnow().isoformat(),

@@ -15,6 +15,11 @@ class ApiLog(Document):
     payload: Optional[str] = None
     error: Optional[str] = None
     response_time: Optional[int] = None
+    # Whether source_ip matched an active IP whitelist entry at request time.
+    # RECORDED ONLY — a False here does NOT mean the request was blocked;
+    # the gateway deliberately does not enforce IP restrictions.
+    ip_whitelisted: Optional[bool] = None
+    partner_name: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

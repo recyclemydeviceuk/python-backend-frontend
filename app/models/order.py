@@ -4,6 +4,12 @@ from typing import Any, Optional
 from datetime import datetime
 
 
+# Mongo filter fragment that excludes UAT/test orders from live reporting.
+# Uses $ne rather than == False because every order created before the is_test
+# field existed has no such key at all, and those must still be counted.
+NOT_TEST_FILTER: dict = {"is_test": {"$ne": True}}
+
+
 class PayoutDetails(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -54,6 +60,12 @@ class Order(Document):
     payout_details: Optional[PayoutDetails] = Field(None, alias="payoutDetails")
     transaction_id: Optional[str] = Field(None, alias="transactionId")
     partner_name: Optional[str] = Field(None, alias="partnerName")
+    # UAT/test orders submitted with a partner key flagged is_test. They are
+    # persisted so partners can verify the round-trip, but are excluded from
+    # admin lists, dashboard stats and exports by default, and never trigger a
+    # customer confirmation email. Deliberately has NO alias so the key is
+    # always stored as "is_test" (legacy rows mix snake_case and camelCase).
+    is_test: bool = False
     notes: Optional[str] = None
     admin_notes: Optional[str] = Field(None, alias="adminNotes")
     price_revision_reason: Optional[str] = Field(None, alias="priceRevisionReason")

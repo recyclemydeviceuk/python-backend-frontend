@@ -35,12 +35,16 @@ async def create_partner(body: CreatePartnerSchema):
         name=body.name,
         key_hash=key_data["key_hash"],
         key_prefix=key_data["key_prefix"],
+        is_test=body.is_test,
         allowed_ips=body.allowed_ips,
         rate_limit=body.rate_limit,
         notes=body.notes,
     )
     await partner.insert()
-    logger.info(f"Partner created: {partner.name}")
+    logger.info(
+        f"Partner created: {partner.name}"
+        + (" [TEST/UAT]" if partner.is_test else "")
+    )
     data = _serialize(partner)
     data["api_key"] = key_data["plain_key"]
     return created_response({"partner": data}, "Partner created successfully. Save the api_key — it will not be shown again.")
@@ -96,6 +100,7 @@ def _serialize(p: Partner) -> dict:
     return {
         "id": str(p.id), "_id": str(p.id), "name": p.name,
         "isActive": p.is_active, "is_active": p.is_active,
+        "isTest": getattr(p, "is_test", False), "is_test": getattr(p, "is_test", False),
         "allowedIps": p.allowed_ips, "allowed_ips": p.allowed_ips,
         "rateLimit": p.rate_limit, "rate_limit": p.rate_limit,
         "totalOrders": p.total_orders, "total_orders": p.total_orders,

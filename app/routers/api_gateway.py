@@ -13,6 +13,7 @@ from app.models.device import Device
 from app.models.partner import Partner
 from app.models.pricing import Pricing
 from app.middleware.partner_auth import get_current_partner
+from app.middleware.ip_whitelist import get_client_ip, is_ip_whitelisted
 from app.utils.order_number import generate_unique_order_number
 from app.utils.response import success_response, created_response
 from app.config.constants import OrderSource, PostageMethod, PaymentMethod, PaymentStatus
@@ -81,7 +82,7 @@ async def _resolve_partner_optional(
     an endpoint should be rejected') and the brief 'I don't want any
     restrictions' on this integration.
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request) or "unknown"
 
     if x_partner_key:
         # Try strict validation first — if it succeeds, use the matched partner.
@@ -399,8 +400,25 @@ async def _log_api_request(
     partner_name: Optional[str] = None,
     payload: Optional[dict] = None,
 ):
-    """Log every API gateway request to ApiLog collection."""
+    """Log every API gateway request to ApiLog collection.
+
+    The whitelist verdict is RECORDED, never enforced — see
+    app/middleware/partner_auth.py for why the gateway stays open.
+    """
     try:
+        client_ip = get_client_ip(request) or "unknown"
+        try:
+            whitelisted = await is_ip_whitelisted(client_ip)
+        except Exception as e:
+            logger.warning(f"IP whitelist lookup failed for {client_ip}: {e}")
+            whitelisted = None
+
+        if whitelisted is False:
+            logger.info(
+                f"Gateway request from NON-whitelisted IP {client_ip} "
+                f"(partner={partner_name}) — allowed, not enforcing."
+            )
+
         body_str = ""
         if payload is not None:
             try:
@@ -411,7 +429,9 @@ async def _log_api_request(
             method=request.method,
             endpoint=str(request.url.path),
             status_code=status_code,
-            source_ip=request.client.host if request.client else "unknown",
+            source_ip=client_ip,
+            ip_whitelisted=whitelisted,
+            partner_name=partner_name,
             payload=body_str or str({"order_number": order_number, "error": error, "partner_name": partner_name}),
             error=error,
             response_time=response_time_ms,
@@ -542,6 +562,11 @@ async def create_external_order(
 
     # ── Resolve partner (strict if key supplied, default otherwise) ─────────
     partner, partner_name = await _resolve_partner_optional(request, x_partner_key)
+
+    # A UAT/test partner key puts this request in test mode: the order is
+    # persisted so the partner can fetch it back and verify the round-trip, but
+    # it is kept out of live reporting and no customer email is ever sent.
+    is_test = bool(partner is not None and getattr(partner, "is_test", False))
 
     # ── 0. Read & normalize payload ──────────────────────────────────────────
     raw_payload = await _read_raw_payload(request)
@@ -1020,6 +1045,7 @@ async def create_external_order(
             ),
             transaction_id=body.transaction_id or "",
             partner_name=partner_name,
+            is_test=is_test,
             admin_notes=admin_notes_value,
             counter_offer=CounterOfferEmbed(),
         )
@@ -1036,7 +1062,8 @@ async def create_external_order(
         )
 
     # ── 8. Increment partner order count (best-effort) ───────────────────────
-    if partner is not None:
+    # Test orders are excluded so a UAT run never distorts partner reporting.
+    if partner is not None and not is_test:
         try:
             partner.total_orders += 1
             await partner.save()
@@ -1044,16 +1071,27 @@ async def create_external_order(
             pass
 
     # ── 9. Send confirmation email ───────────────────────────────────────────
-    if body.customer_email:
+    # NEVER send customer email for a test order — UAT payloads routinely carry
+    # real-looking addresses and a live confirmation would be sent to a real
+    # person for an order that does not exist.
+    if body.customer_email and not is_test:
         try:
             await send_order_confirmation(order)
         except Exception as e:
             logger.warning(f"Order confirmation email failed for {order.order_number}: {e}")
+    elif is_test:
+        logger.info(
+            f"TEST order {order.order_number}: confirmation email suppressed "
+            f"(partner={partner_name})."
+        )
 
     # ── 10. Log successful request ───────────────────────────────────────────
     await _log_api_request(request, 200, True, order.order_number, None, _ms(start_time),
                            partner_name, payload=raw_payload)
-    logger.info(f"API Order created: {order.order_number} by partner {partner_name}")
+    logger.info(
+        f"API Order created: {order.order_number} by partner {partner_name}"
+        + (" [TEST — not a live order]" if is_test else "")
+    )
 
     # DecisionTech DOP spec: return HTTP 200 with an order_id field at the top
     # level of the response body. We additionally include our existing keys for
@@ -1065,12 +1103,19 @@ async def create_external_order(
             "order_id": order.order_number,
             "orderNumber": order.order_number,
             "orderId": order.order_number,
-            "message": "Order created successfully",
+            "test": is_test,
+            "mode": "test" if is_test else "live",
+            "message": (
+                "Test order accepted. This is a UAT order — it will not be "
+                "fulfilled and no customer email was sent."
+                if is_test else "Order created successfully"
+            ),
             "order": {
                 "id": str(order.id),
                 "order_id": order.order_number,
                 "orderNumber": order.order_number,
                 "status": order.status,
+                "test": is_test,
                 "createdAt": order.created_at.isoformat(),
             },
         },
@@ -1087,15 +1132,42 @@ async def create_gateway_order(
 
 @router.get("/test", summary="Test API Gateway (GET)")
 @router.post("/test", summary="Test API Gateway (POST)")
-async def test_endpoint(request: Request):
-    """GET/POST /api/gateway/test — connectivity check."""
-    client_ip = request.client.host if request.client else "unknown"
-    return success_response({
+async def test_endpoint(
+    request: Request,
+    x_partner_key: Optional[str] = Header(None),
+):
+    """GET/POST /api/gateway/test — connectivity check.
+
+    Partners use this to confirm which source IP we actually see them arriving
+    from, and whether that IP is recorded in our whitelist. `ip_whitelisted` is
+    INFORMATIONAL: the gateway does not block un-whitelisted IPs.
+
+    When a valid X-Partner-Key is supplied we also echo back which partner it
+    resolves to and whether that key is a test/UAT key — so a partner can prove
+    their UAT credentials work before sending a real order.
+    """
+    client_ip = get_client_ip(request) or "unknown"
+    try:
+        whitelisted = await is_ip_whitelisted(client_ip)
+    except Exception as e:
+        logger.warning(f"IP whitelist lookup failed for {client_ip}: {e}")
+        whitelisted = None
+
+    payload = {
         "success": True,
         "message": "API Gateway is working",
         "source_ip": client_ip,
+        "ip_whitelisted": whitelisted,
         "timestamp": datetime.utcnow().isoformat(),
-    })
+    }
+
+    if x_partner_key:
+        partner, partner_name = await _resolve_partner_optional(request, x_partner_key)
+        payload["partner"] = partner_name
+        payload["partner_key_valid"] = partner is not None and bool(partner.key_hash)
+        payload["mode"] = "test" if (partner is not None and partner.is_test) else "live"
+
+    return success_response(payload)
 
 
 @router.get("/orders", summary="Get partner orders")
@@ -1149,5 +1221,6 @@ def _serialize(o: Order) -> dict:
         "final_price": o.final_price,
         "postage_method": o.postage_method,
         "payment_status": o.payment_status,
+        "test": getattr(o, "is_test", False),
         "created_at": o.created_at.isoformat(),
     }

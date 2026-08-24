@@ -16,6 +16,16 @@ async def get_all():
 
 @router.post("", summary="Add IP to whitelist", dependencies=[Depends(get_current_admin)])
 async def add_ip(ip_address: str, label: str = None):
+    ip_address = ip_address.strip()
+    if not IpWhitelist.is_valid(ip_address):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"'{ip_address}' is not a valid IP address or CIDR range. "
+                f"Use a single address (e.g. '91.102.184.10') or a range "
+                f"(e.g. '91.102.184.0/24')."
+            ),
+        )
     existing = await IpWhitelist.find_one(IpWhitelist.ip_address == ip_address)
     if existing:
         raise HTTPException(status_code=409, detail="IP address already whitelisted")

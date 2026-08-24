@@ -3,7 +3,7 @@ from fastapi.responses import Response
 from typing import Optional
 from datetime import datetime
 from app.middleware.auth import get_current_admin
-from app.models.order import Order
+from app.models.order import Order, NOT_TEST_FILTER
 from app.models.device import Device
 from app.models.pricing import Pricing
 from app.services.export_service import (
@@ -42,6 +42,8 @@ async def export_orders(
     # Legacy param names, kept so existing bookmarks/integrations don't break.
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    include_test: bool = False,
+    includeTest: Optional[bool] = None,
 ):
     # Reuse the exact filter + serialization pipeline of GET /api/orders so
     # the CSV always matches what the admin sees in the panel.
@@ -63,6 +65,7 @@ async def export_orders(
         min_price=minPrice if minPrice is not None else min_price,
         max_price=maxPrice if maxPrice is not None else max_price,
         search=search,
+        include_test=includeTest if includeTest is not None else include_test,
     )
     docs.sort(key=lambda d: _coerce_sort_datetime(_raw_value(d, "created_at", "createdAt")), reverse=True)
 
@@ -127,7 +130,7 @@ async def export_pricing_route(
 
 @router.get("/all", summary="Export all data as ZIP", dependencies=[Depends(get_current_admin)])
 async def export_all():
-    orders = await Order.find().sort(-Order.created_at).to_list()
+    orders = await Order.find(NOT_TEST_FILTER).sort(-Order.created_at).to_list()
     devices = await Device.find().sort(Device.brand).to_list()
     pricing = await Pricing.find().sort(Pricing.device_name).to_list()
 
@@ -150,7 +153,7 @@ async def export_analytics(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ):
-    match_filter = {}
+    match_filter = dict(NOT_TEST_FILTER)
     if start_date or end_date:
         date_filter = {}
         if start_date:
@@ -178,7 +181,7 @@ async def export_analytics(
     status_breakdown = await Order.aggregate(status_pipeline).to_list()
     top_devices = await Order.aggregate(device_pipeline).to_list()
     revenue_data = await Order.aggregate(revenue_pipeline).to_list()
-    total_orders = await Order.count()
+    total_orders = await Order.find(NOT_TEST_FILTER).count()
 
     revenue = revenue_data[0] if revenue_data else {}
     analytics = {

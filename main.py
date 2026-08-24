@@ -449,6 +449,51 @@ async def _migrate_pricing_hierarchy() -> dict:
     return stats
 
 
+# Partner source IPs we record in the whitelist. RECORDED, NOT ENFORCED — the
+# API gateway deliberately does not block un-whitelisted callers (see
+# app/middleware/partner_auth.py). These entries drive the `ip_whitelisted`
+# flag on ApiLog and the /api/gateway/test response, which is what lets a
+# partner confirm we see them arriving from the ranges they told us about.
+_SEED_WHITELIST_IPS: list = [
+    # MONY Group (MoneySuperMarket) AWS Landing Zone — supplied 20/08/2026 for
+    # the Mobile Recycling ordering-system re-platform. Used for BOTH their
+    # test and live environments.
+    ("91.102.184.0/24", "MONY Group AWS Landing Zone (primary)"),
+    ("91.102.185.0/24", "MONY Group AWS Landing Zone (backup)"),
+    # DecisionTech DOP test IPs, per their existing integration guide.
+    ("35.189.124.202", "DecisionTech DOP test"),
+    ("109.176.94.116", "DecisionTech DOP test"),
+    ("109.176.117.84", "DecisionTech DOP test"),
+    ("35.197.205.228", "DecisionTech DOP test"),
+]
+
+
+async def _seed_ip_whitelist():
+    """Insert known partner source IPs / ranges. Idempotent — runs every boot."""
+    from app.models.ip_whitelist import IpWhitelist
+
+    added = 0
+    for ip_address, label in _SEED_WHITELIST_IPS:
+        try:
+            if not IpWhitelist.is_valid(ip_address):
+                logger.warning(f"Skipping invalid whitelist seed entry: {ip_address}")
+                continue
+            existing = await IpWhitelist.find_one(IpWhitelist.ip_address == ip_address)
+            if existing:
+                continue
+            await IpWhitelist(
+                ip_address=ip_address,
+                label=label,
+                description="Seeded at startup. Recorded for logging only — not enforced.",
+            ).insert()
+            added += 1
+        except Exception as e:
+            logger.warning(f"Could not seed whitelist entry {ip_address}: {e}")
+
+    if added:
+        logger.info(f"IP whitelist seeded: {added} new entr{'y' if added == 1 else 'ies'}.")
+
+
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -461,6 +506,7 @@ async def lifespan(app: FastAPI):
     await _seed_admins()
     await _seed_workflow_statuses()
     await _seed_device_conditions()
+    await _seed_ip_whitelist()
     await _migrate_pricing_hierarchy()
     yield
     await close_db()
