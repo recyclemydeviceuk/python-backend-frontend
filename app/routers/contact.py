@@ -28,7 +28,7 @@ async def submit_contact(body: CreateContactSchema):
             status_code=500,
             detail=(
                 "We could not save your message right now. "
-                "Please try again in a minute or email Support@cashmymobile.co.uk directly."
+                "Please try again in a minute or email support@cashmymobile.co.uk directly."
             ),
         )
 

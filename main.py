@@ -12,6 +12,11 @@ from typing import Optional
 
 from app.config.settings import settings
 from app.config.database import connect_db, close_db
+from app.config.constants import (
+    EXCELLENT_CRITERIA,
+    GOOD_CRITERIA,
+    BROKEN_CRITERIA,
+)
 from app.routers import api_router
 from app.utils.logger import logger
 
@@ -329,9 +334,9 @@ async def _seed_device_conditions():
     from app.models.device_condition import DeviceCondition
 
     canonical = [
-        ("NEW",    "New / Excellent", "Perfect or near-perfect condition.", 1),
-        ("GOOD",   "Good",            "Fully working with minor wear.",    2),
-        ("BROKEN", "Broken / Faulty", "Cracked screen or hardware faults.", 3),
+        ("NEW",    "New / Excellent", EXCELLENT_CRITERIA, 1),
+        ("GOOD",   "Good",            GOOD_CRITERIA,      2),
+        ("BROKEN", "Broken / Faulty", BROKEN_CRITERIA,    3),
     ]
     canonical_values = {v for v, _, _, _ in canonical}
 
@@ -621,12 +626,13 @@ if _frontend_dir.exists():
 templates = Jinja2Templates(directory=str(_templates_dir))
 
 # Expose support contact details to every template so we can change them in
-# one place (settings.SUPPORT_PHONE / SUPPORT_EMAIL) without hunting through
-# the templates. Setting SUPPORT_PHONE to "" via env var hides every
-# click-to-call CTA across the public site (contact, footer, counter-offer,
-# complaint pages).
-templates.env.globals["support_phone"] = settings.SUPPORT_PHONE or ""
-templates.env.globals["support_email"] = settings.SUPPORT_EMAIL or "Support@cashmymobile.co.uk"
+# one place (settings.SUPPORT_EMAIL / OFFICE_HOURS) without hunting through the
+# templates. There is deliberately no support_phone global: every enquiry is
+# handled by email, and the click-to-call CTAs were removed from the public
+# site (contact, footer, counter-offer, complaint, sell-success pages).
+templates.env.globals["support_email"] = settings.SUPPORT_EMAIL or "support@cashmymobile.co.uk"
+templates.env.globals["office_hours"] = settings.OFFICE_HOURS
+templates.env.globals["office_hours_note"] = settings.OFFICE_HOURS_NOTE
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────
@@ -840,9 +846,9 @@ async def sell_condition(request: Request, device_id: str, device_name: str, sto
     # Always offer all three grades — use DeviceCondition entries only as
     # optional name/description overrides keyed by NEW/GOOD/BROKEN.
     default_grades = [
-        ("NEW",    "New / Excellent",  "Perfect or near-perfect condition."),
-        ("GOOD",   "Good / Working",   "Fully working with minor wear."),
-        ("BROKEN", "Broken / Faulty",  "Cracked screen or hardware faults."),
+        ("NEW",    "New / Excellent",  EXCELLENT_CRITERIA),
+        ("GOOD",   "Good",             GOOD_CRITERIA),
+        ("BROKEN", "Broken / Faulty",  BROKEN_CRITERIA),
     ]
     overrides: dict = {}
     try:

@@ -172,7 +172,8 @@ async def send_order_confirmation(order) -> bool:
             "offeredPrice": f"{order.offered_price:.2f}",
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "supportPhone": EMAIL_DEFAULTS["support_phone"],
+            "officeHours": EMAIL_DEFAULTS["office_hours"],
+            "officeHoursNote": EMAIL_DEFAULTS["office_hours_note"],
         })
         return _send_raw_email(
             to=order.customer_email,
@@ -206,11 +207,8 @@ async def send_order_status_update(order, old_status: str, comment: Optional[str
             "finalPrice": f"{final_price:.2f}",
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "supportPhone": EMAIL_DEFAULTS["support_phone"],
-            # WhatsApp contact shown on every status email (incl. Pack Sent /
-            # Device Received), not just the counter-offer email.
-            "whatsappNumber": WHATSAPP_NUMBER_DISPLAY,
-            "whatsappLink": f"https://wa.me/{WHATSAPP_NUMBER_LINK}",
+            "officeHours": EMAIL_DEFAULTS["office_hours"],
+            "officeHoursNote": EMAIL_DEFAULTS["office_hours_note"],
         })
         return _send_email(order.customer_email, f"Order Update - {order.order_number}", html)
     except Exception as e:
@@ -253,7 +251,8 @@ async def send_order_completion_email(order) -> bool:
             "finalPrice": f"{final:.2f}",
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "supportPhone": EMAIL_DEFAULTS["support_phone"],
+            "officeHours": EMAIL_DEFAULTS["office_hours"],
+            "officeHoursNote": EMAIL_DEFAULTS["office_hours_note"],
         })
         return _send_raw_email(
             to=order.customer_email,
@@ -279,7 +278,8 @@ async def send_price_revision_email(order, old_price: float, new_price: float, r
             "revisionReason": reason or "Price adjustment after inspection",
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "supportPhone": EMAIL_DEFAULTS["support_phone"],
+            "officeHours": EMAIL_DEFAULTS["office_hours"],
+            "officeHoursNote": EMAIL_DEFAULTS["office_hours_note"],
         })
         return _send_email(order.customer_email, f"Price Revision - {order.order_number}", html)
     except Exception as e:
@@ -312,7 +312,8 @@ async def send_payment_confirmation(order) -> bool:
             "accountNumber": acct,
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "supportPhone": EMAIL_DEFAULTS["support_phone"],
+            "officeHours": EMAIL_DEFAULTS["office_hours"],
+            "officeHoursNote": EMAIL_DEFAULTS["office_hours_note"],
         })
         return _send_email(order.customer_email, f"Payment Sent - {order.order_number}", html)
     except Exception as e:
@@ -352,20 +353,20 @@ def _build_device_images_html(counter_offer) -> str:
     )
 
 
-WHATSAPP_NUMBER_DISPLAY = "+44 7938 361920"
-WHATSAPP_NUMBER_LINK = "447938361920"
+def _support_contact_html() -> str:
+    """Inline email call-to-action used in counter offer emails.
+    Renders as a solid pill so it works even when remote images are blocked
+    (Gmail/Outlook strip third-party assets by default).
 
-
-def _whatsapp_contact_html() -> str:
-    """Inline WhatsApp call-to-action used in counter offer emails.
-    Renders as a green pill so it works even when remote images are blocked
-    (Gmail/Outlook strip third-party assets by default)."""
+    Support is email-only — there is no phone or WhatsApp channel, so this is
+    the single contact CTA every customer email should use."""
+    email = EMAIL_DEFAULTS["support_email"]
     return (
-        f'<a href="https://wa.me/{WHATSAPP_NUMBER_LINK}" '
-        'style="display:inline-block;background:#25D366;color:#ffffff;'
+        f'<a href="mailto:{email}" '
+        'style="display:inline-block;background:#15803d;color:#ffffff;'
         'font-weight:700;text-decoration:none;padding:8px 16px;'
         'border-radius:9999px;font-size:14px;">'
-        f'WhatsApp us &nbsp;{WHATSAPP_NUMBER_DISPLAY}</a>'
+        f'Email us &nbsp;{email}</a>'
     )
 
 
@@ -388,9 +389,7 @@ async def send_counter_offer_email(order, counter_offer) -> bool:
             "expiryDate": expiry_date,
             "supportEmail": EMAIL_DEFAULTS["support_email"],
             "deviceImagesHtml": _build_device_images_html(counter_offer),
-            "whatsappContact": _whatsapp_contact_html(),
-            "whatsappNumber": WHATSAPP_NUMBER_DISPLAY,
-            "whatsappLink": f"https://wa.me/{WHATSAPP_NUMBER_LINK}",
+            "supportContact": _support_contact_html(),
         })
         return _send_email(
             order.customer_email,
@@ -490,8 +489,6 @@ async def send_counter_offer_accepted_email(order, counter_offer) -> bool:
             "orderNumber": order.order_number,
             "revisedPrice": f"{counter_offer.revised_price:.2f}",
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "whatsappNumber": WHATSAPP_NUMBER_DISPLAY,
-            "whatsappLink": f"https://wa.me/{WHATSAPP_NUMBER_LINK}",
         })
         return _send_email(order.customer_email, f"Counter Offer Accepted - Order #{order.order_number}", html)
     except Exception as e:
@@ -527,7 +524,8 @@ async def send_contact_confirmation(submission) -> bool:
             "message": submission.message,
             "companyName": EMAIL_DEFAULTS["company_name"],
             "supportEmail": EMAIL_DEFAULTS["support_email"],
-            "supportPhone": EMAIL_DEFAULTS["support_phone"],
+            "officeHours": EMAIL_DEFAULTS["office_hours"],
+            "officeHoursNote": EMAIL_DEFAULTS["office_hours_note"],
         })
         return _send_email(submission.email, "We received your message", html)
     except Exception as e:

@@ -13,6 +13,7 @@ from app.services.email_service import (
     send_admin_counter_offer_response,
 )
 from app.config.constants import CounterOfferStatus, PaymentStatus, OrderStatus
+from app.config.settings import settings
 from app.utils.response import success_response, created_response
 from app.utils.logger import logger
 
@@ -178,12 +179,12 @@ async def accept_offer(token: str):
     if offer.status != CounterOfferStatus.PENDING:
         _err(400,
              "You have already declined this offer, so it can no longer be "
-             "accepted online. Please message us on WhatsApp (+44 7938 361920) "
+             f"accepted online. Please email us at {settings.SUPPORT_EMAIL} "
              "and we'll sort it out for you.")
     if offer.is_expired():
         _err(400,
              "This counter offer has expired (offers are valid for 48 hours). "
-             "Please message us on WhatsApp (+44 7938 361920) if you still "
+             f"Please email us at {settings.SUPPORT_EMAIL} if you still "
              "wish to accept and we'll reopen it for you.")
 
     now = datetime.utcnow()
@@ -253,12 +254,12 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
     if offer.status != CounterOfferStatus.PENDING:
         _err(400,
              "You have already accepted this offer, so it can no longer be "
-             "declined online. Please message us on WhatsApp (+44 7938 361920) "
+             f"declined online. Please email us at {settings.SUPPORT_EMAIL} "
              "if you've changed your mind.")
     if offer.is_expired():
         _err(400,
              "This counter offer has expired (offers are valid for 48 hours). "
-             "Please message us on WhatsApp (+44 7938 361920) and we'll help "
+             f"Please email us at {settings.SUPPORT_EMAIL} and we'll help "
              "you from there.")
 
     now = datetime.utcnow()
@@ -286,11 +287,11 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
                 order.counter_offer.responded_at = now
             # Keep final_price pinned to the revised amount on decline too, so the
             # order's price column keeps showing what we offered (the order stays
-            # in PRICE_REVISED for manual WhatsApp follow-up). Mirrors accept_offer.
+            # in PRICE_REVISED for manual email follow-up). Mirrors accept_offer.
             order.final_price = float(offer.revised_price)
             # Do NOT auto-cancel. Keep the order visible on the admin back-end under
             # PRICE_REVISED with the revised price + reason and a "Declined" tag, so
-            # staff can follow up (e.g. on WhatsApp) and choose the final status
+            # staff can follow up by email and choose the final status
             # themselves. Auto-cancelling here hid the revised price and slammed the
             # order to Cancelled before staff could act.
             order.status = OrderStatus.PRICE_REVISED
@@ -303,7 +304,7 @@ async def reject_offer(token: str, body: Optional[RespondCounterOfferSchema] = N
                 f"{offer.order_number}: {e}"
             )
         # No automatic customer email on decline — declines are handled manually
-        # (WhatsApp). Admins are still notified out-of-band below.
+        # from the support inbox. Admins are still notified out-of-band below.
         try:
             await send_admin_counter_offer_response(order, offer, accepted=False)
         except Exception as e:

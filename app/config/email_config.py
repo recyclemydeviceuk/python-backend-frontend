@@ -4,7 +4,8 @@ EMAIL_DEFAULTS = {
     "company_name": "CashMyMobile",
     "website_url": settings.FRONTEND_URL,
     "support_email": settings.SUPPORT_EMAIL,
-    "support_phone": settings.SUPPORT_PHONE,
+    "office_hours": settings.OFFICE_HOURS,
+    "office_hours_note": settings.OFFICE_HOURS_NOTE,
     "logo_url": "https://res.cloudinary.com/dn2sab6qc/image/upload/v1772457689/CMM-Logo_kid8km.png",
     "admin_panel_url": settings.ADMIN_PANEL_URL,
 }

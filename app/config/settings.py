@@ -65,8 +65,15 @@ class Settings(BaseSettings):
     API_GATEWAY_ENABLED: bool = True
 
     # Support contact
-    SUPPORT_EMAIL: str = "Support@cashmymobile.co.uk"
-    SUPPORT_PHONE: str = "03333356679"
+    # Every customer enquiry is handled by email only — there is no inbound
+    # support phone line. Do not reintroduce a SUPPORT_PHONE setting: the
+    # click-to-call CTAs were removed from the public site along with it.
+    SUPPORT_EMAIL: str = "support@cashmymobile.co.uk"
+
+    # Office hours shown on the contact page, complaint page, terms and the
+    # contact-confirmation email. Kept here so all four stay in sync.
+    OFFICE_HOURS: str = "Mon–Fri, 11am–6pm"
+    OFFICE_HOURS_NOTE: str = "Weekends & bank holidays: closed"
 
     @property
     def ENVIRONMENT(self) -> str:

@@ -65,6 +65,28 @@ DEVICE_GRADE_LABELS = {
 }
 
 
+# ── Grade criteria (single source of truth) ────────────────────────────────
+# These strings are what the customer reads on the condition-selection page,
+# what the DeviceCondition seed writes into MongoDB, and what the partner API
+# quotes back in a 422 device_grade error. Change them here only — every other
+# surface imports from this module so the wording can never drift apart.
+EXCELLENT_CRITERIA = (
+    "90% battery health or 500 battery cycle count, with box, no visible wear "
+    "on screen or housing, fully functional, all parts genuine."
+)
+GOOD_CRITERIA = (
+    "No visible wear on screen or housing, 85% battery health or 500 battery "
+    "cycle count, fully functional, all parts genuine."
+)
+BROKEN_CRITERIA = "Cracked screen or hardware faults."
+
+DEVICE_GRADE_CRITERIA = {
+    "NEW": EXCELLENT_CRITERIA,
+    "GOOD": GOOD_CRITERIA,
+    "BROKEN": BROKEN_CRITERIA,
+}
+
+
 class OrderSource(str, Enum):
     WEBSITE = "WEBSITE"
     API = "API"

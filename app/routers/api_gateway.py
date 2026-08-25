@@ -16,7 +16,10 @@ from app.middleware.partner_auth import get_current_partner
 from app.middleware.ip_whitelist import get_client_ip, is_ip_whitelisted
 from app.utils.order_number import generate_unique_order_number
 from app.utils.response import success_response, created_response
-from app.config.constants import OrderSource, PostageMethod, PaymentMethod, PaymentStatus
+from app.config.constants import (
+    OrderSource, PostageMethod, PaymentMethod, PaymentStatus,
+    EXCELLENT_CRITERIA, GOOD_CRITERIA, BROKEN_CRITERIA,
+)
 from app.utils.logger import logger
 from app.services.email_service import send_order_confirmation
 
@@ -733,9 +736,9 @@ async def create_external_order(
     grade = _coerce_grade(body.device_grade)
     if grade not in ("NEW", "GOOD", "BROKEN"):
         msg = (f"The value '{body.device_grade}' is not a recognised device_grade. "
-               f"Please use one of: 'NEW' / 2 (perfect or near-perfect condition), "
-               f"'GOOD' / 0 (fully working with minor wear), "
-               f"or 'BROKEN' / 1 (cracked screen or hardware faults). "
+               f"Please use one of: 'NEW' / 2 ({EXCELLENT_CRITERIA}), "
+               f"'GOOD' / 0 ({GOOD_CRITERIA}), "
+               f"or 'BROKEN' / 1 ({BROKEN_CRITERIA}) "
                f"DecisionTech numeric codes (0=working, 1=broken, 2=new) are also accepted.")
         await _log_api_request(request, 422, False, None, msg, _ms(start_time),
                                partner_name, payload=raw_payload)

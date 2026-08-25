@@ -19,26 +19,33 @@
 <!-- ── MAIN CONTENT ── -->
 <section class="section section-bg-gray" style="padding-top:1.5rem;">
   <div class="container">
+
+    <!-- ── PLEASE NOTE ── -->
+    <div class="blue-tip" style="max-width:100%;align-items:flex-start;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <p class="blue-tip-text">
+        <strong>Please note:</strong> All enquiries are handled by email only at
+        <a href="mailto:{{ support_email }}" style="color:#1d4ed8;font-weight:700;text-decoration:none;">{{ support_email }}</a>.
+        We do not operate a telephone support line. Our office hours are
+        <strong>{{ office_hours }}</strong> ({{ office_hours_note }}). If you contact us
+        outside these hours we will reply on the next working day.
+      </p>
+    </div>
+
     <div class="contact-grid">
       <!-- Left: Contact Info -->
       <div class="contact-info-cards">
-        <a href="mailto:Support@cashmymobile.co.uk" class="contact-card">
+        <a href="mailto:support@cashmymobile.co.uk" class="contact-card">
           <div class="contact-card-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
-          <div><div class="contact-card-label">Email Us</div><div class="contact-card-value">Support@cashmymobile.co.uk</div><div class="contact-card-sub">We reply within a few hours</div></div>
+          <div><div class="contact-card-label">Email Us</div><div class="contact-card-value">support@cashmymobile.co.uk</div><div class="contact-card-sub">All enquiries handled here</div></div>
         </a>
-        {% if support_phone %}
-        <a href="tel:{{ support_phone }}" class="contact-card">
-          <div class="contact-card-icon" style="background:#f0fdf4;"><svg style="width:1.25rem;height:1.25rem;color:#16a34a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.54 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
-          <div><div class="contact-card-label">Call Us</div><div class="contact-card-value">{{ support_phone }}</div><div class="contact-card-sub">Mon–Fri, 9am–6pm</div></div>
-        </a>
-        {% endif %}
         <a href="/about" class="contact-card">
           <div class="contact-card-icon" style="background:#eff6ff;"><svg style="width:1.25rem;height:1.25rem;color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
           <div><div class="contact-card-label">Based In</div><div class="contact-card-value">37 Hesketh Road, Southport, England, PR9 9PB</div><div class="contact-card-sub">UK registered company</div></div>
         </a>
         <a href="/about" class="contact-card">
           <div class="contact-card-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-          <div><div class="contact-card-label">Working Hours</div><div class="contact-card-value">Mon–Fri: 9am – 6pm</div><div class="contact-card-sub">Sat: 10am – 4pm</div></div>
+          <div><div class="contact-card-label">Office Hours</div><div class="contact-card-value">Mon–Fri: 11am – 6pm</div><div class="contact-card-sub">Weekends &amp; bank holidays: closed</div></div>
         </a>
         <div style="background:#fff;border-radius:1rem;border:1px solid #f3f4f6;padding:1.25rem;">
           <p style="font-size:.625rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem;">Quick Help</p>
@@ -71,7 +78,7 @@
               <div><label style="display:block;font-size:.625rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;">Email Address <span style="color:#dc2626">*</span></label><input type="email" name="email" class="field-input" style="border:1px solid #e5e7eb;background:#f9fafb;" placeholder="john@example.com" required /></div>
             </div>
             <div class="form-grid-2">
-              <div><label style="display:block;font-size:.625rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;">Phone Number</label><input type="tel" name="phone" class="field-input" style="border:1px solid #e5e7eb;background:#f9fafb;" placeholder="03333356679" /></div>
+              <div><label style="display:block;font-size:.625rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;">Phone Number</label><input type="tel" name="phone" class="field-input" style="border:1px solid #e5e7eb;background:#f9fafb;" placeholder="07700 900123" /></div>
               <div><label style="display:block;font-size:.625rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;">Subject <span style="color:#dc2626">*</span></label>
                 <select name="subject" class="select-field" required><option value="">Select a subject...</option><option>General Enquiry</option><option>Quote Question</option><option>Order Status</option><option>Payment Issue</option><option>Shipping &amp; Postage</option><option>Data &amp; Security</option><option>Other</option></select>
               </div>
@@ -97,7 +104,7 @@
       <div class="trust-strip-item"><div class="trust-strip-icon" style="background:#f0fdf4;"><svg style="width:1.25rem;height:1.25rem;color:#16a34a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="trust-strip-title">Fast Response</div><div class="trust-strip-desc">Reply within a few hours</div></div>
       <div class="trust-strip-item"><div class="trust-strip-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="trust-strip-title">UK Based Team</div><div class="trust-strip-desc">Local support you can trust</div></div>
       <div class="trust-strip-item"><div class="trust-strip-icon" style="background:#eff6ff;"><svg style="width:1.25rem;height:1.25rem;color:#2563eb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="trust-strip-title">Friendly Support</div><div class="trust-strip-desc">No bots, real people</div></div>
-      <div class="trust-strip-item"><div class="trust-strip-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="trust-strip-title">Always Here</div><div class="trust-strip-desc">Mon–Sat availability</div></div>
+      <div class="trust-strip-item"><div class="trust-strip-icon" style="background:#fef2f2;"><svg style="width:1.25rem;height:1.25rem;color:#dc2626" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div class="trust-strip-title">Always Here</div><div class="trust-strip-desc">Mon–Fri, 11am–6pm</div></div>
     </div>
   </div>
 </section>
