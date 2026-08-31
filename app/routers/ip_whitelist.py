@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 from app.models.ip_whitelist import IpWhitelist
 from app.middleware.auth import get_current_admin
 from app.utils.response import success_response, created_response
@@ -8,6 +10,12 @@ from app.utils.logger import logger
 router = APIRouter(prefix="/ip-whitelist", tags=["IP Whitelist"])
 
 
+class AddIpSchema(BaseModel):
+    ip_address: str
+    label: Optional[str] = None
+    description: Optional[str] = None
+
+
 @router.get("", summary="Get all whitelisted IPs", dependencies=[Depends(get_current_admin)])
 async def get_all():
     entries = await IpWhitelist.find().sort(-IpWhitelist.created_at).to_list()
@@ -15,8 +23,8 @@ async def get_all():
 
 
 @router.post("", summary="Add IP to whitelist", dependencies=[Depends(get_current_admin)])
-async def add_ip(ip_address: str, label: str = None):
-    ip_address = ip_address.strip()
+async def add_ip(body: AddIpSchema):
+    ip_address = body.ip_address.strip()
     if not IpWhitelist.is_valid(ip_address):
         raise HTTPException(
             status_code=422,
@@ -29,7 +37,11 @@ async def add_ip(ip_address: str, label: str = None):
     existing = await IpWhitelist.find_one(IpWhitelist.ip_address == ip_address)
     if existing:
         raise HTTPException(status_code=409, detail="IP address already whitelisted")
-    entry = IpWhitelist(ip_address=ip_address, label=label)
+    entry = IpWhitelist(
+        ip_address=ip_address,
+        label=body.label,
+        description=body.description,
+    )
     await entry.insert()
     logger.info(f"IP whitelisted: {ip_address}")
     return created_response({"entry": _serialize(entry)}, "IP added to whitelist")
@@ -60,6 +72,9 @@ def _serialize(e: IpWhitelist) -> dict:
         "id": str(e.id),
         "ip_address": e.ip_address,
         "label": e.label,
+        "description": e.description,
         "is_active": e.is_active,
+        "isActive": e.is_active,
         "created_at": e.created_at.isoformat(),
+        "createdAt": e.created_at.isoformat(),
     }

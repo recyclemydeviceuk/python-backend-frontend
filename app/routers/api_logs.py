@@ -103,4 +103,10 @@ def _serialize(l) -> dict:
         "user_agent": _raw_value(l, 'user_agent') if is_raw else getattr(l, 'user_agent', None),
         "partner_name": _raw_value(l, 'partner_name', 'partnerName') if is_raw else getattr(l, 'partner_name', None),
         "partnerName": _raw_value(l, 'partner_name', 'partnerName') if is_raw else getattr(l, 'partner_name', None),
+        # Whether source_ip matched an active whitelist entry when the request
+        # arrived. May be None on rows logged before the field existed, and on
+        # rows where the lookup itself failed — the UI must treat None as
+        # "unknown", never as "not whitelisted".
+        "ip_whitelisted": _raw_value(l, 'ip_whitelisted', 'ipWhitelisted') if is_raw else getattr(l, 'ip_whitelisted', None),
+        "ipWhitelisted": _raw_value(l, 'ip_whitelisted', 'ipWhitelisted') if is_raw else getattr(l, 'ip_whitelisted', None),
     }
