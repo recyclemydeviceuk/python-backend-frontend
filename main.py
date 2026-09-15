@@ -914,16 +914,43 @@ async def sell_submit(
     from app.utils.order_number import generate_unique_order_number
     from app.config.constants import OrderSource
     from app.services.email_service import send_order_confirmation
+    from app.utils.customer_validation import validate_customer_form
+
+    # Server-side validation: character limits + format rules on every
+    # customer field. The HTML form enforces the same rules client-side, but
+    # anyone can bypass that, so nothing is stored until this passes.
+    cleaned, errors = validate_customer_form({
+        "full_name": full_name, "email": email, "phone": phone,
+        "address": address, "city": city, "postcode": postcode,
+        "account_name": account_name, "sort_code": sort_code,
+        "account_number": account_number,
+    })
+    if postage_method not in ("label", "postbag"):
+        postage_method = "label"
+    if errors:
+        logger.warning(
+            f"[sell/submit] Rejected order form ({len(errors)} invalid field(s)): "
+            f"{', '.join(errors.keys())}"
+        )
+        return templates.TemplateResponse("sell_details.html", {
+            "request": request, "active_page": "sell",
+            "device_id": device_id, "device_name": device_name,
+            "storage": storage, "network": network,
+            "condition": condition, "price": price,
+            "errors": errors, "values": cleaned,
+            "postage_method": postage_method,
+        }, status_code=422)
+
     order_number = await generate_unique_order_number()
     order = Order(
         order_number=order_number,
         source=OrderSource.WEBSITE,
-        customer_name=full_name,
-        customer_phone=phone,
-        customer_email=email,
-        customer_address=address,
-        city=city,
-        postcode=postcode,
+        customer_name=cleaned["full_name"],
+        customer_phone=cleaned["phone"],
+        customer_email=cleaned["email"],
+        customer_address=cleaned["address"],
+        city=cleaned["city"],
+        postcode=cleaned["postcode"],
         device_id=device_id,
         device_name=device_name,
         network=network,
@@ -933,9 +960,9 @@ async def sell_submit(
         postage_method=postage_method,
         payment_method="bank",
         payout_details=PayoutDetails(
-            account_name=account_name,
-            sort_code=sort_code,
-            account_number=account_number,
+            account_name=cleaned["account_name"],
+            sort_code=cleaned["sort_code"],
+            account_number=cleaned["account_number"],
         ),
     )
     await order.insert()

@@ -351,7 +351,7 @@ async def admin_orders(request: Request, q: str = "", status: str = "", page: in
         )
 
     # Paginate
-    per_page = 20
+    per_page = 500
     total = len(filtered)
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = max(1, min(page, total_pages))

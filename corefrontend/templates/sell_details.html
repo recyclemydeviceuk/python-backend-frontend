@@ -36,7 +36,16 @@
     </div>
   </div>
 
-  <form method="POST" action="/sell/submit" class="form-fields">
+  <form method="POST" action="/sell/submit" class="form-fields" id="order-form" novalidate>
+    {% if errors %}
+    <div class="error-box" id="form-error-box">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <p class="error-box-title">Please check your details</p>
+        <p class="error-box-msg">{{ errors | length }} field{{ 's' if errors | length != 1 else '' }} need{{ '' if errors | length != 1 else 's' }} correcting — see the messages below.</p>
+      </div>
+    </div>
+    {% endif %}
     <!-- Hidden state -->
     <input type="hidden" name="device_id" value="{{ device_id }}">
     <input type="hidden" name="device_name" value="{{ device_name }}">
@@ -56,16 +65,19 @@
       <div class="form-fields">
         <div>
           <label class="field-label">Full Name <span style="color:#dc2626">*</span></label>
-          <input type="text" name="full_name" class="field-input" placeholder="John Doe" required />
+          <input type="text" name="full_name" class="field-input{% if errors and errors.full_name %} field-input-invalid{% endif %}" placeholder="John Doe" value="{{ values.full_name if values else '' }}" required minlength="2" maxlength="60" pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' .\-]*" autocomplete="name" title="Letters, spaces, hyphens and apostrophes only (max 60 characters)" />
+          {% if errors and errors.full_name %}<p class="field-error">{{ errors.full_name }}</p>{% endif %}
         </div>
         <div class="form-row">
           <div>
             <label class="field-label">Email Address <span style="color:#dc2626">*</span></label>
-            <input type="email" name="email" class="field-input" placeholder="john@example.com" required />
+            <input type="email" name="email" class="field-input{% if errors and errors.email %} field-input-invalid{% endif %}" placeholder="john@example.com" value="{{ values.email if values else '' }}" required maxlength="100" autocomplete="email" />
+            {% if errors and errors.email %}<p class="field-error">{{ errors.email }}</p>{% endif %}
           </div>
           <div>
             <label class="field-label">Phone Number <span style="color:#dc2626">*</span></label>
-            <input type="tel" name="phone" class="field-input" placeholder="07700 900123" required />
+            <input type="tel" name="phone" class="field-input{% if errors and errors.phone %} field-input-invalid{% endif %}" placeholder="07700 900123" value="{{ values.phone if values else '' }}" required maxlength="20" inputmode="tel" pattern="\+?[0-9 ()\-]{10,20}" autocomplete="tel" title="UK phone number, digits only (e.g. 07700 900123)" />
+            {% if errors and errors.phone %}<p class="field-error">{{ errors.phone }}</p>{% endif %}
           </div>
         </div>
       </div>
@@ -82,16 +94,19 @@
       <div class="form-fields">
         <div>
           <label class="field-label">Address <span style="color:#dc2626">*</span></label>
-          <textarea name="address" class="field-input field-textarea" rows="3" placeholder="123 High Street" required></textarea>
+          <textarea name="address" class="field-input field-textarea{% if errors and errors.address %} field-input field-textarea-invalid{% endif %}" rows="3" placeholder="123 High Street" required minlength="5" maxlength="150" autocomplete="street-address">{{ values.address if values else '' }}</textarea>
+          {% if errors and errors.address %}<p class="field-error">{{ errors.address }}</p>{% endif %}
         </div>
         <div class="form-row">
           <div>
             <label class="field-label">City / Town <span style="color:#dc2626">*</span></label>
-            <input type="text" name="city" class="field-input" placeholder="London" required />
+            <input type="text" name="city" class="field-input{% if errors and errors.city %} field-input-invalid{% endif %}" placeholder="London" value="{{ values.city if values else '' }}" required minlength="2" maxlength="50" pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' .\-]*" autocomplete="address-level2" title="Letters, spaces, hyphens and apostrophes only (max 50 characters)" />
+            {% if errors and errors.city %}<p class="field-error">{{ errors.city }}</p>{% endif %}
           </div>
           <div>
             <label class="field-label">Postcode <span style="color:#dc2626">*</span></label>
-            <input type="text" name="postcode" class="field-input" placeholder="SW1A 1AA" required />
+            <input type="text" name="postcode" class="field-input{% if errors and errors.postcode %} field-input-invalid{% endif %}" placeholder="SW1A 1AA" value="{{ values.postcode if values else '' }}" required maxlength="8" pattern="[A-Za-z]{1,2}[0-9][0-9A-Za-z]? ?[0-9][A-Za-z]{2}" autocomplete="postal-code" title="Valid UK postcode (e.g. SW1A 1AA)" style="text-transform:uppercase" />
+            {% if errors and errors.postcode %}<p class="field-error">{{ errors.postcode }}</p>{% endif %}
           </div>
         </div>
       </div>
@@ -109,16 +124,19 @@
       <div class="form-fields">
         <div>
           <label class="field-label">Account Name <span style="color:#dc2626">*</span></label>
-          <input type="text" name="account_name" class="field-input" placeholder="John Doe" required />
+          <input type="text" name="account_name" class="field-input{% if errors and errors.account_name %} field-input-invalid{% endif %}" placeholder="John Doe" value="{{ values.account_name if values else '' }}" required minlength="2" maxlength="60" pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' .\-]*" autocomplete="off" title="Name on the bank account — letters, spaces, hyphens and apostrophes only" />
+          {% if errors and errors.account_name %}<p class="field-error">{{ errors.account_name }}</p>{% endif %}
         </div>
         <div class="form-row">
           <div>
             <label class="field-label">Sort Code <span style="color:#dc2626">*</span></label>
-            <input type="text" name="sort_code" class="field-input" placeholder="12-34-56" required />
+            <input type="text" name="sort_code" class="field-input{% if errors and errors.sort_code %} field-input-invalid{% endif %}" placeholder="12-34-56" value="{{ values.sort_code if values else '' }}" required maxlength="8" inputmode="numeric" pattern="[0-9]{2}[- ]?[0-9]{2}[- ]?[0-9]{2}" autocomplete="off" title="6-digit sort code (e.g. 12-34-56)" />
+            {% if errors and errors.sort_code %}<p class="field-error">{{ errors.sort_code }}</p>{% endif %}
           </div>
           <div>
             <label class="field-label">Account Number <span style="color:#dc2626">*</span></label>
-            <input type="text" name="account_number" class="field-input" placeholder="12345678" required />
+            <input type="text" name="account_number" class="field-input{% if errors and errors.account_number %} field-input-invalid{% endif %}" placeholder="12345678" value="{{ values.account_number if values else '' }}" required minlength="8" maxlength="8" inputmode="numeric" pattern="[0-9]{8}" autocomplete="off" title="8-digit account number" />
+            {% if errors and errors.account_number %}<p class="field-error">{{ errors.account_number }}</p>{% endif %}
           </div>
         </div>
       </div>
@@ -190,7 +208,7 @@
       </style>
       <div style="display:flex;flex-direction:column;gap:.625rem;">
         <label class="postage-option">
-          <input type="radio" name="postage_method" value="label" checked />
+          <input type="radio" name="postage_method" value="label" {% if not postage_method or postage_method == "label" %}checked{% endif %} />
           <span class="postage-radio" aria-hidden="true"></span>
           <div class="postage-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -201,7 +219,7 @@
           </div>
         </label>
         <label class="postage-option">
-          <input type="radio" name="postage_method" value="postbag" />
+          <input type="radio" name="postage_method" value="postbag" {% if postage_method == "postbag" %}checked{% endif %} />
           <span class="postage-radio" aria-hidden="true"></span>
           <div class="postage-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
@@ -220,4 +238,126 @@
     </button>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  // Client-side mirror of app/utils/customer_validation.py. The server is
+  // the real gatekeeper; this just gives instant feedback and stops obvious
+  // junk before it's posted.
+  var form = document.getElementById('order-form');
+  if (!form) return;
+  var NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' .\-]*$/;
+  var EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
+  var POSTCODE_RE = /^(GIR ?0AA|[A-PR-UWYZ][A-HK-Y]?[0-9][0-9A-Z]? ?[0-9][ABD-HJLNP-UW-Z]{2})$/i;
+  var ADDRESS_RE = /^[A-Za-z0-9À-ÖØ-öø-ÿ ,.'\-\/&#\n\r]+$/;
+  var REPEAT_RE = /(.{4,}?)\1{2,}/i;
+
+  function clean(v) { return (v || '').replace(/\s+/g, ' ').trim(); }
+  function nameCheck(v, label, max) {
+    v = clean(v);
+    if (v.length < 2) return label + ' is too short.';
+    if (v.length > max) return label + ' must be ' + max + ' characters or fewer.';
+    if (!NAME_RE.test(v)) return label + ' can only contain letters, spaces, hyphens and apostrophes.';
+    if (REPEAT_RE.test(v)) return label + ' looks invalid — please enter your real ' + label.toLowerCase() + '.';
+    return '';
+  }
+  var rules = {
+    full_name: function (v) { return nameCheck(v, 'Full name', 60); },
+    account_name: function (v) { return nameCheck(v, 'Account name', 60); },
+    city: function (v) { return nameCheck(v, 'City / town', 50); },
+    email: function (v) {
+      v = clean(v);
+      if (!v) return 'Email address is required.';
+      if (v.length > 100) return 'Email address must be 100 characters or fewer.';
+      if (!EMAIL_RE.test(v)) return 'Please enter a valid email address (e.g. name@example.com).';
+      return '';
+    },
+    phone: function (v) {
+      v = clean(v);
+      if (!v) return 'Phone number is required.';
+      if (v.length > 20) return 'Phone number is too long.';
+      if (!/^\+?[0-9 ()\-]+$/.test(v)) return 'Phone number can only contain digits.';
+      var d = v.replace(/\D/g, '');
+      if (v.charAt(0) === '+' && d.indexOf('44') === 0) d = '0' + d.slice(2);
+      else if (d.indexOf('0044') === 0) d = '0' + d.slice(4);
+      else if (d.indexOf('44') === 0 && d.length === 12) d = '0' + d.slice(2);
+      if (!/^0[1237][0-9]{8,9}$/.test(d) || (d.length !== 10 && d.length !== 11)) return 'Please enter a valid UK phone number (e.g. 07700 900123).';
+      return '';
+    },
+    address: function (v) {
+      v = clean(v);
+      if (v.length < 5) return 'Address is too short.';
+      if (v.length > 150) return 'Address must be 150 characters or fewer.';
+      if (!ADDRESS_RE.test(v)) return "Address contains characters that aren't allowed.";
+      if (REPEAT_RE.test(v)) return 'Address looks invalid — please enter your real address.';
+      return '';
+    },
+    postcode: function (v) {
+      v = clean(v).toUpperCase();
+      if (!v) return 'Postcode is required.';
+      if (v.length > 8 || !POSTCODE_RE.test(v)) return 'Please enter a valid UK postcode (e.g. SW1A 1AA).';
+      return '';
+    },
+    sort_code: function (v) {
+      v = clean(v);
+      if (!v) return 'Sort code is required.';
+      if (!/^[0-9 \-]+$/.test(v) || v.replace(/\D/g, '').length !== 6) return 'Sort code must be exactly 6 digits (e.g. 12-34-56).';
+      return '';
+    },
+    account_number: function (v) {
+      v = clean(v);
+      if (!v) return 'Account number is required.';
+      if (!/^[0-9 \-]+$/.test(v) || v.replace(/\D/g, '').length !== 8) return 'Account number must be exactly 8 digits.';
+      return '';
+    }
+  };
+
+  function setError(input, msg) {
+    var wrap = input.parentNode;
+    var el = wrap.querySelector('.field-error');
+    if (msg) {
+      if (!el) { el = document.createElement('p'); el.className = 'field-error'; wrap.appendChild(el); }
+      el.textContent = msg;
+      input.classList.add('field-input-invalid');
+    } else {
+      if (el) el.remove();
+      input.classList.remove('field-input-invalid');
+    }
+  }
+  function validateField(input) {
+    var rule = rules[input.name];
+    if (!rule) return true;
+    var msg = rule(input.value);
+    setError(input, msg);
+    return !msg;
+  }
+
+  Object.keys(rules).forEach(function (name) {
+    var input = form.elements[name];
+    if (!input) return;
+    input.addEventListener('blur', function () { validateField(input); });
+    input.addEventListener('input', function () {
+      if (input.classList.contains('field-input-invalid')) validateField(input);
+    });
+  });
+
+  form.addEventListener('submit', function (e) {
+    var firstBad = null;
+    Object.keys(rules).forEach(function (name) {
+      var input = form.elements[name];
+      if (input && !validateField(input) && !firstBad) firstBad = input;
+    });
+    if (firstBad) {
+      e.preventDefault();
+      firstBad.focus();
+      firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    var btn = form.querySelector('.submit-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+  });
+})();
+</script>
 {% endblock %}

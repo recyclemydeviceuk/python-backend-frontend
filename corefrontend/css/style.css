@@ -415,6 +415,9 @@ img { max-width: 100%; display: block; }
 .field-input::placeholder { color: #9ca3af; }
 .field-input:focus { border-color: #f87171; }
 .field-textarea { resize: none; }
+.field-input-invalid, .field-input:user-invalid { border-color: #dc2626; background: #fff7f7; }
+.field-error { font-size: 0.75rem; color: #dc2626; margin-top: 0.375rem; font-weight: 500; }
+.field-hint { font-size: 0.6875rem; color: #9ca3af; margin-top: 0.25rem; }
 .postage-option {
   display: flex; align-items: center; gap: 0.75rem; border: 2px solid #e5e7eb;
   border-radius: 1rem; padding: 0.75rem 1rem; cursor: pointer; transition: all 0.2s; background: #fff;
