@@ -12,6 +12,10 @@
       <a href="/faq" class="nav-link{% if active_page == 'faq' %} active{% endif %}" data-page="faq">FAQ</a>
     </nav>
     <div class="header-actions">
+      <div class="site-switch" role="group" aria-label="Switch between selling and buying">
+        <span class="site-switch-opt active" aria-current="true">Sell</span>
+        <a href="https://buy.cashmymobile.co.uk/" class="site-switch-opt">Buy</a>
+      </div>
       <a href="/sell" class="btn-primary desktop-cta">
         Get Started
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -27,6 +31,12 @@
 </header>
 <div class="mobile-overlay" id="mobile-overlay"></div>
 <div class="mobile-drawer" id="mobile-drawer">
+  <div class="mobile-switch-wrap">
+    <div class="site-switch site-switch-full" role="group" aria-label="Switch between selling and buying">
+      <span class="site-switch-opt active" aria-current="true">Sell a phone</span>
+      <a href="https://buy.cashmymobile.co.uk/" class="site-switch-opt">Buy a phone</a>
+    </div>
+  </div>
   <nav class="mobile-nav">
     <a href="/" class="mobile-nav-link{% if active_page == 'home' %} active{% endif %}" data-page="home"><span class="dot"></span>Home</a>
     <a href="/sell" class="mobile-nav-link{% if active_page == 'sell' %} active{% endif %}" data-page="sell"><span class="dot"></span>Sell Phone</a>

@@ -40,6 +40,22 @@ img { max-width: 100%; display: block; }
   width: 4px; height: 4px; background: #dc2626; border-radius: 50%;
 }
 .header-actions { display: flex; align-items: center; gap: 0.5rem; }
+.site-switch {
+  display: inline-flex; align-items: center; padding: 3px; gap: 2px;
+  background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px;
+}
+.site-switch-opt {
+  padding: 0.375rem 0.875rem; border-radius: 999px;
+  font-size: 0.8125rem; font-weight: 700; line-height: 1.2; color: #4b5563;
+  transition: all 0.2s; white-space: nowrap; text-align: center;
+}
+a.site-switch-opt:hover { color: #dc2626; background: #fff; }
+.site-switch-opt.active { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220,38,38,0.3); }
+.site-switch-full { display: flex; width: 100%; }
+.site-switch-full .site-switch-opt { flex: 1; padding: 0.625rem 0.875rem; font-size: 0.875rem; }
+.mobile-switch-wrap { padding: 1rem 1rem 0; }
+@media (min-width: 769px) { .mobile-switch-wrap { display: none; } }
+@media (max-width: 768px) { .header-actions > .site-switch { display: none; } }
 .btn-primary {
   display: inline-flex; align-items: center; gap: 0.375rem;
   background: #dc2626; color: #fff; font-weight: 700;
