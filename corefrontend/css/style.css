@@ -705,3 +705,25 @@ a.site-switch-opt:hover { color: #dc2626; background: #fff; }
   .btn-mobile-cta { display: none; }
   .form-layout { grid-template-columns: 1fr 280px; gap: 1.5rem; align-items: start; }
 }
+
+/* ── Header: keep the desktop bar on one line ──
+   Compact links that never wrap; the Sell/Buy pill steps aside on mid-size screens
+   (the highlighted Buy Phone link stays), and below 1024px the menu moves into the drawer. */
+.header-inner { gap: 1rem; }
+.header-logo { flex-shrink: 0; }
+.header-logo img { height: 2.25rem; }
+.nav-links { gap: 0.125rem; }
+.nav-link { white-space: nowrap; font-size: 0.8125rem; padding: 0.45rem 0.75rem; }
+a.cross-link { padding: 0.35rem 0.8rem; }
+.header-actions { flex-shrink: 0; }
+.btn-primary.desktop-cta { white-space: nowrap; }
+@media (max-width: 1200px) {
+  .header-actions > .site-switch { display: none; }
+}
+@media (max-width: 1023px) {
+  .nav-links { display: none; }
+  .btn-primary.desktop-cta { display: none; }
+  .hamburger { display: flex; }
+  .btn-mobile-cta { display: inline-flex; white-space: nowrap; }
+  .mobile-switch-wrap { display: block; }
+}
