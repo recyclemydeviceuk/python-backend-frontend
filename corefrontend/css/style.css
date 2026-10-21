@@ -40,6 +40,42 @@ img { max-width: 100%; display: block; }
   width: 4px; height: 4px; background: #dc2626; border-radius: 50%;
 }
 .header-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+/* ── Cross-site link (Buy Phone): animated gradient border, shimmering label, soft glow ── */
+@property --cross-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+a.cross-link {
+  display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;
+  padding: 0.45rem 0.95rem; border-radius: 999px;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--cross-angle), #dc2626, #f97316, #ec4899, #8b5cf6, #dc2626) border-box;
+  animation: cross-spin 3s linear infinite, cross-glow 2.4s ease-in-out infinite;
+  color: #dc2626;
+}
+a.cross-link::after { display: none; }
+a.cross-link svg { width: 0.85rem; height: 0.85rem; color: #dc2626; transition: transform 0.2s; }
+a.cross-link:hover { background:
+    linear-gradient(#fff7f7, #fff7f7) padding-box,
+    conic-gradient(from var(--cross-angle), #dc2626, #f97316, #ec4899, #8b5cf6, #dc2626) border-box; }
+a.cross-link:hover svg { transform: translate(2px, -2px); }
+.cross-link-text {
+  font-weight: 700;
+  background: linear-gradient(90deg, #dc2626, #f97316, #ec4899, #dc2626);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cross-shimmer 4s linear infinite;
+}
+a.cross-link.cross-link-block { display: flex; justify-content: center; margin: 0.25rem 0; padding: 0.7rem 1rem; }
+@keyframes cross-spin { to { --cross-angle: 360deg; } }
+@keyframes cross-shimmer { to { background-position: 300% 0; } }
+@keyframes cross-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.0), 0 2px 10px rgba(236, 72, 153, 0.15); }
+  50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.08), 0 4px 18px rgba(236, 72, 153, 0.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  a.cross-link, .cross-link-text { animation: none; }
+}
 .site-switch {
   display: inline-flex; align-items: center; padding: 3px; gap: 2px;
   background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px;
