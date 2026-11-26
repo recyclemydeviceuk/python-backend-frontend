@@ -109,4 +109,11 @@ def _serialize(l) -> dict:
         # "unknown", never as "not whitelisted".
         "ip_whitelisted": _raw_value(l, 'ip_whitelisted', 'ipWhitelisted') if is_raw else getattr(l, 'ip_whitelisted', None),
         "ipWhitelisted": _raw_value(l, 'ip_whitelisted', 'ipWhitelisted') if is_raw else getattr(l, 'ip_whitelisted', None),
+        # Masked key (prefix…last4) and whether it matched a partner. None on
+        # rows logged before these fields existed, or when no key was sent.
+        "partner_key_hint": _raw_value(l, 'partner_key_hint') if is_raw else getattr(l, 'partner_key_hint', None),
+        "partnerKeyHint": _raw_value(l, 'partner_key_hint') if is_raw else getattr(l, 'partner_key_hint', None),
+        "partner_key_matched": _raw_value(l, 'partner_key_matched') if is_raw else getattr(l, 'partner_key_matched', None),
+        "partnerKeyMatched": _raw_value(l, 'partner_key_matched') if is_raw else getattr(l, 'partner_key_matched', None),
+        "reference": _raw_value(l, 'reference') if is_raw else getattr(l, 'reference', None),
     }

@@ -20,6 +20,16 @@ class ApiLog(Document):
     # the gateway deliberately does not enforce IP restrictions.
     ip_whitelisted: Optional[bool] = None
     partner_name: Optional[str] = None
+    # Masked X-Partner-Key as received (prefix + last 4 chars, never the whole
+    # key) and whether it matched an active partner. Lets us answer a partner's
+    # "we sent the key ending in …f79 — what did you see?" without storing the
+    # secret. None when no key was sent.
+    partner_key_hint: Optional[str] = None
+    partner_key_matched: Optional[bool] = None
+    # Per-request reference, also returned to the caller in the X-Request-ID
+    # response header (and in the body of a 500), so a partner can quote it.
+    reference: Optional[str] = None
+    user_agent: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -1,6 +1,8 @@
 import time
 import json
+import math
 import re
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
@@ -64,6 +66,20 @@ async def _get_or_create_default_dop_partner() -> Optional[Partner]:
         return None
 
 
+def _key_hint(key: Optional[str]) -> Optional[str]:
+    """Mask a partner key for logs: 'cmm_pk_16607cce…1f79' — never the whole
+    secret. The 8-hex prefix matches `Partner.key_prefix` on the Partners page,
+    and the last 4 chars match what partners quote back to us."""
+    if not key:
+        return None
+    key = key.strip()
+    if key.startswith("cmm_pk_") and len(key) > 19:
+        return f"{key[:15]}…{key[-4:]}"
+    if len(key) > 8:
+        return f"…{key[-4:]} (non-standard key, {len(key)} chars)"
+    return f"(non-standard key, {len(key)} chars)"
+
+
 async def _resolve_partner_optional(
     request: Request,
     x_partner_key: Optional[str],
@@ -86,8 +102,11 @@ async def _resolve_partner_optional(
     restrictions' on this integration.
     """
     client_ip = get_client_ip(request) or "unknown"
+    request.state.partner_key_hint = _key_hint(x_partner_key)
+    request.state.partner_key_matched = None
 
     if x_partner_key:
+        request.state.partner_key_matched = False
         # Try strict validation first — if it succeeds, use the matched partner.
         if x_partner_key.startswith("cmm_pk_"):
             try:
@@ -97,6 +116,7 @@ async def _resolve_partner_optional(
                     None,
                 )
                 if matched:
+                    request.state.partner_key_matched = True
                     try:
                         matched.last_used_at = datetime.utcnow()
                         await matched.save()
@@ -104,14 +124,15 @@ async def _resolve_partner_optional(
                         pass
                     return matched, matched.name
             except Exception as e:
+                # Unknown, not "no match": the lookup itself failed.
+                request.state.partner_key_matched = None
                 logger.warning(f"Partner key lookup failed: {e}")
 
         # Header present but did not match a partner — log and fall through.
-        prefix = x_partner_key[:11] + "..." if len(x_partner_key) > 11 else "(short)"
         logger.warning(
             f"Gateway: X-Partner-Key supplied but did not match any active "
             f"partner — accepting anyway under default DOP partner "
-            f"(prefix={prefix}, ip={client_ip})"
+            f"(key={request.state.partner_key_hint}, ip={client_ip})"
         )
 
     # No key, or key didn't match — attribute to default DOP partner.
@@ -199,16 +220,20 @@ def _coerce_price(value: Any) -> Optional[float]:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
+        price = float(value)
+    elif isinstance(value, str):
         cleaned = re.sub(r"[£$€,\s]", "", value.strip())
         if not cleaned:
             return None
         try:
-            return float(cleaned)
+            price = float(cleaned)
         except ValueError:
             return None
-    return None
+    else:
+        return None
+    # "nan" / "inf" parse as floats but are not prices — a NaN would slip past
+    # every <= 0 / > 10000 comparison and be saved on the order.
+    return price if math.isfinite(price) else None
 
 
 # DecisionTech grade-code mapping: 0 = working (GOOD), 1 = broken, 2 = new.
@@ -228,6 +253,8 @@ def _coerce_grade(value: Any) -> Optional[str]:
     # Booleans should not be silently coerced (True == 1)
     if isinstance(value, bool):
         return None
+    if isinstance(value, float) and not value.is_integer():
+        return None  # 0.5, NaN, inf — int() would raise on the last two
     if isinstance(value, (int, float)):
         return _GRADE_NUMERIC.get(str(int(value)))
     if isinstance(value, str):
@@ -340,6 +367,23 @@ class GatewayOrderSchema(BaseModel):
                     out[canonical] = lookup[v]
                     break
 
+        # Every field except the price is a string on our side. Form-urlencoded
+        # bodies always give strings, but a JSON sender naturally types its
+        # values: "device_grade": 0 (the DOP 0/1/2 codes), "street1": 4,
+        # "device_cracked_display": false. Pydantic would reject each of those
+        # with a 422, so stringify every scalar — before the name/address
+        # assembly below, which only reads strings. Integral floats lose the
+        # ".0" so a grade sent as 0.0 still reads as "0".
+        for key, val in list(out.items()):
+            if key == "offered_price" or val is None or isinstance(val, str):
+                continue
+            if isinstance(val, bool):
+                out[key] = "true" if val else "false"
+            elif isinstance(val, float) and val.is_integer():
+                out[key] = str(int(val))
+            elif isinstance(val, (int, float)):
+                out[key] = str(val)
+
         # ── Build customer_name from first_name + last_name if missing ─────
         if not out.get("customer_name"):
             fn = (out.get("first_name") or "").strip() if isinstance(out.get("first_name"), str) else ""
@@ -361,16 +405,6 @@ class GatewayOrderSchema(BaseModel):
         # Coerce price (DecisionTech sends as quoted string like "99.99")
         if "offered_price" in out:
             out["offered_price"] = _coerce_price(out["offered_price"])
-
-        # Coerce ID-style fields that may arrive as int (form-urlencoded gives
-        # strings, but JSON clients sometimes send raw numbers).
-        for key in ("customer_phone", "account_number", "sort_code", "device_id",
-                    "transaction_id", "storage", "postcode", "first_name", "last_name",
-                    "street1", "street2", "city", "county", "country",
-                    "device_cracked_display", "device_other_faults",
-                    "device_single_button_fault"):
-            if key in out and out[key] is not None and not isinstance(out[key], str):
-                out[key] = str(out[key])
 
         return out
 
@@ -440,6 +474,10 @@ async def _log_api_request(
             response_time=response_time_ms,
             success=success,
             order_number=order_number,
+            partner_key_hint=getattr(request.state, "partner_key_hint", None),
+            partner_key_matched=getattr(request.state, "partner_key_matched", None),
+            reference=getattr(request.state, "gateway_ref", None),
+            user_agent=(request.headers.get("user-agent") or "")[:300] or None,
         )
         await log.insert()
     except Exception as e:
@@ -451,12 +489,14 @@ def _ms(start: float) -> int:
 
 
 def _err(status: int, message: str, field: Optional[str] = None,
-         errors: Optional[list] = None) -> JSONResponse:
+         errors: Optional[list] = None,
+         reference: Optional[str] = None) -> JSONResponse:
     """Build an error response body partners can actually parse.
 
     Always includes 'success', 'error' and 'message' (identical strings).
-    Optionally includes 'field' (the single field at fault) and 'errors'
-    (a list of {field, message} entries for per-field validation failures).
+    Optionally includes 'field' (the single field at fault), 'errors'
+    (a list of {field, message} entries for per-field validation failures)
+    and 'reference' (the X-Request-ID to quote to support).
     """
     content: dict = {
         "success": False,
@@ -467,6 +507,8 @@ def _err(status: int, message: str, field: Optional[str] = None,
         content["field"] = field
     if errors:
         content["errors"] = errors
+    if reference:
+        content["reference"] = reference
     return JSONResponse(status_code=status, content=content)
 
 
@@ -560,11 +602,69 @@ async def create_external_order(
     so requests without a key are attributed to the auto-created
     'DecisionTech / MoneySupermarket' partner. Existing CashMyMobile partners
     that DO send a key continue to be authenticated strictly.
+
+    Every response carries an X-Request-ID header. Any unexpected failure is
+    caught here, logged with a traceback under that reference, and returned as
+    a JSON 500 — never a bare 'Internal Server Error' with nothing recorded.
     """
     start_time = time.time()
+    ref = "GW-" + secrets.token_hex(4).upper()
+    request.state.gateway_ref = ref
 
+    # Logged BEFORE any database call: if Mongo is unreachable, this line is
+    # still the proof in the Render logs that the partner's request arrived.
+    logger.info(
+        f"Gateway order request {ref}: ip={get_client_ip(request) or 'unknown'} "
+        f"host={request.headers.get('host')} "
+        f"content-type={request.headers.get('content-type')} "
+        f"length={request.headers.get('content-length')} "
+        f"key={_key_hint(x_partner_key) or 'none'} "
+        f"ua={(request.headers.get('user-agent') or '')[:120]}"
+    )
+
+    try:
+        response = await _create_external_order(request, x_partner_key, start_time)
+    except Exception as e:
+        logger.exception(f"Gateway order request {ref} failed unexpectedly: {e}")
+        saved_number = getattr(request.state, "gateway_order_number", None)
+        await _log_api_request(
+            request, 200 if saved_number else 500, bool(saved_number), saved_number,
+            f"Unexpected {type(e).__name__}: {e}"[:1000],
+            _ms(start_time),
+            getattr(request.state, "gateway_partner_name", None),
+            payload=getattr(request.state, "gateway_payload", None),
+        )
+        if saved_number:
+            # The order is already persisted. Answer as a success so the
+            # partner does not retry and create a duplicate order.
+            response = JSONResponse(status_code=200, content={
+                "success": True,
+                "order_id": saved_number,
+                "orderNumber": saved_number,
+                "orderId": saved_number,
+                "message": "Order created successfully",
+                "reference": ref,
+            })
+        else:
+            response = _err(
+                500,
+                "An internal error occurred while processing the order, and it was "
+                "NOT saved. Please retry the request shortly. If it keeps failing, "
+                f"contact support@cashmymobile.co.uk quoting reference {ref}.",
+                reference=ref,
+            )
+    response.headers["X-Request-ID"] = ref
+    return response
+
+
+async def _create_external_order(
+    request: Request,
+    x_partner_key: Optional[str],
+    start_time: float,
+):
     # ── Resolve partner (strict if key supplied, default otherwise) ─────────
     partner, partner_name = await _resolve_partner_optional(request, x_partner_key)
+    request.state.gateway_partner_name = partner_name
 
     # A UAT/test partner key puts this request in test mode: the order is
     # persisted so the partner can fetch it back and verify the round-trip, but
@@ -573,6 +673,7 @@ async def create_external_order(
 
     # ── 0. Read & normalize payload ──────────────────────────────────────────
     raw_payload = await _read_raw_payload(request)
+    request.state.gateway_payload = raw_payload
     if "__raw__" in raw_payload:
         msg = ("The request body could not be parsed. Please send the order data "
                "as either application/json or application/x-www-form-urlencoded.")
@@ -1053,15 +1154,18 @@ async def create_external_order(
             counter_offer=CounterOfferEmbed(),
         )
         await order.insert()
+        request.state.gateway_order_number = order.order_number
     except Exception as e:
         logger.exception(f"Failed to persist gateway order: {e}")
         await _log_api_request(request, 500, False, None, str(e), _ms(start_time),
                                partner_name, payload=raw_payload)
+        ref = getattr(request.state, "gateway_ref", None)
         return _err(
             500,
             "An internal error occurred while saving the order. "
             "Please retry the request shortly, or contact support@cashmymobile.co.uk "
-            "if the problem persists.",
+            f"if the problem persists, quoting reference {ref}.",
+            reference=ref,
         )
 
     # ── 8. Increment partner order count (best-effort) ───────────────────────
@@ -1167,6 +1271,7 @@ async def test_endpoint(
     if x_partner_key:
         partner, partner_name = await _resolve_partner_optional(request, x_partner_key)
         payload["partner"] = partner_name
+        payload["partner_key_received"] = _key_hint(x_partner_key)
         payload["partner_key_valid"] = partner is not None and bool(partner.key_hash)
         payload["mode"] = "test" if (partner is not None and partner.is_test) else "live"
 
