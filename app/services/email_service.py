@@ -15,8 +15,36 @@ from app.utils.logger import logger
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 
 
+def _uk_devices_notice_html() -> str:
+    """The 'UK devices only' block every customer email carries.
+
+    Written once here so the wording is identical in every template, and kept
+    in step with Section 6 of the Terms & Conditions page. Inline styles and a
+    table layout so it survives Gmail/Outlook."""
+    terms_url = f"{(settings.FRONTEND_URL or 'https://cashmymobile.co.uk/').rstrip('/')}/terms#tradein"
+    return (
+        '<table role="presentation" style="width: 100%; background-color: #eff6ff; '
+        'border: 1px solid #bfdbfe; border-left: 5px solid #1d4ed8; border-radius: 10px; '
+        'margin: 25px 0;" cellspacing="0" cellpadding="0" border="0"><tr>'
+        '<td style="padding: 18px 22px; text-align: left;">'
+        '<p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #1e3a8a;">'
+        'UK devices only</p>'
+        '<p style="margin: 0; font-size: 14px; color: #1f2937; line-height: 1.6;">'
+        'We only accept UK versions of mobile phones and other devices, meaning models '
+        'originally made for and sold in the UK market. We do not accept any non-UK '
+        'version, including imported or overseas models. See our '
+        f'<a href="{terms_url}" style="color: #1d4ed8; text-decoration: underline;">'
+        'Terms &amp; Conditions</a>.</p>'
+        '</td></tr></table>'
+    )
+
+
 def _replace_vars(template: str, variables: dict) -> str:
-    """Replace {{key}} placeholders with values — matches Node.js replaceTemplateVars."""
+    """Replace {{key}} placeholders with values — matches Node.js replaceTemplateVars.
+
+    `{{ukDevicesNotice}}` is filled in for every template, so a template only
+    has to include the placeholder to carry the UK-devices-only notice."""
+    variables = {"ukDevicesNotice": _uk_devices_notice_html(), **variables}
     for key, value in variables.items():
         template = template.replace(f"{{{{{key}}}}}", str(value) if value is not None else "")
     return template

@@ -196,6 +196,22 @@
                     </tr>
                 </table>
 
+                <!-- Before You Post -->
+                <table role="presentation" style="width: 100%; background-color: #f0fdf4; border-radius: 10px; margin: 30px 0; border-left: 5px solid #16a34a;" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                        <td style="padding: 25px 25px 0 25px; font-size: 18px; font-weight: 700; color: #14532d;">Before You Post Your Device</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 14px 25px 0 25px; color: #166534; font-size: 15px; line-height: 1.6;"><strong>Include your order number:</strong> Please include a note with your order number (<strong>#{{orderNumber}}</strong>) inside the parcel if you can. It helps us match your device to your order quickly.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 14px 25px 25px 25px; color: #166534; font-size: 15px; line-height: 1.6;"><strong>Please note:</strong> our label is a Royal Mail Tracked 24 Returns label, so the parcel and its contents are covered up to <strong>£150</strong> in value. If you would like to purchase Special Delivery and be covered up to <strong>£750</strong> in value, please request this at the Post Office.</td>
+                    </tr>
+                </table>
+
+                <!-- UK devices only (shared notice, filled in by email_service) -->
+                {{ukDevicesNotice}}
+
                 <!-- Divider -->
                 <table role="presentation" style="width: 100%;" cellspacing="0" cellpadding="0" border="0">
                     <tr>
