@@ -48,8 +48,17 @@ async def get_log_stats():
     total = await collection.count_documents({})
     successful = await collection.count_documents({"success": True})
     failed = total - successful
-    all_logs = await collection.find({}).to_list(length=None)
-    avg_response = round(sum((_raw_value(l, 'response_time_ms', 'response_time', 'responseTime') or 0) for l in all_logs) / total, 2) if total else 0
+    # Sum response times inside Mongo — loading every log (with its full
+    # payload) just to average one number exhausted the instance's memory.
+    # Same fallback order as _raw_value: response_time_ms, response_time,
+    # responseTime, else 0; the average is still over all `total` rows.
+    sum_rows = await collection.aggregate([
+        {"$group": {"_id": None, "sum": {"$sum": {"$ifNull": [
+            "$response_time_ms", {"$ifNull": ["$response_time", {"$ifNull": ["$responseTime", 0]}]},
+        ]}}}},
+    ]).to_list(length=1)
+    response_sum = sum_rows[0]["sum"] if sum_rows else 0
+    avg_response = round(response_sum / total, 2) if total else 0
     return success_response({
         "totalRequests": total,
         "successfulRequests": successful,

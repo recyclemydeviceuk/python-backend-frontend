@@ -47,12 +47,13 @@ async def export_orders(
 ):
     # Reuse the exact filter + serialization pipeline of GET /api/orders so
     # the CSV always matches what the admin sees in the panel.
-    from app.routers.orders import _filter_docs, _serialize_raw, _coerce_sort_datetime, _raw_value
+    # Filtering runs on slim projections and full orders are loaded in
+    # batches, so an export never holds the whole collection in memory.
+    from app.routers.orders import (
+        _load_filtered_order_stubs, serialize_order_stubs, _coerce_sort_datetime, _raw_value,
+    )
 
-    collection = Order.get_motor_collection()
-    docs = await collection.find({}).to_list(length=None)
-    docs = _filter_docs(
-        docs,
+    docs = await _load_filtered_order_stubs(
         status=status,
         source=source,
         payment_status=paymentStatus or payment_status,
@@ -69,7 +70,7 @@ async def export_orders(
     )
     docs.sort(key=lambda d: _coerce_sort_datetime(_raw_value(d, "created_at", "createdAt")), reverse=True)
 
-    rows = [_serialize_raw(d) for d in docs]
+    rows = await serialize_order_stubs(docs)
     csv_bytes = orders_csv_from_rows(rows)
     filename = f"orders_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.csv"
     logger.info(f"Orders exported: {len(rows)} orders")

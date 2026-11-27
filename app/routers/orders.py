@@ -49,11 +49,15 @@ async def get_all_orders(
     includeTest: Optional[bool] = None,
 ):
     try:
-        collection = Order.get_motor_collection()
-        docs = await collection.find({}).to_list(length=None)
+        requested_sort = sortBy or sort_by or "createdAt"
+        reverse = (sortOrder or sort_order) == "desc"
 
-        docs = _filter_docs(
-            docs,
+        # Filter + sort on a slim projection, then load full documents only
+        # for the rows we return. Loading every full order (and every counter
+        # offer) on each request ran the Render instance out of memory, and
+        # requests caught in the restart timed out in the admin panel.
+        docs = await _load_filtered_order_stubs(
+            extra_fields=_SORT_FIELDS.get(requested_sort, (requested_sort,)),
             status=status,
             source=source,
             payment_status=paymentStatus or payment_status,
@@ -68,41 +72,77 @@ async def get_all_orders(
             search=search,
             include_test=includeTest if includeTest is not None else include_test,
         )
-
-        requested_sort = sortBy or sort_by or "createdAt"
-        reverse = (sortOrder or sort_order) == "desc"
         docs.sort(key=lambda doc: _sort_value(doc, requested_sort), reverse=reverse)
 
         total = len(docs)
+        if limit is not None:
+            skip = (page - 1) * limit
+            docs = docs[skip:skip + limit]
 
-        # Fetch the most-recent counter offer per order in ONE batch so the
-        # orders list can show the revised price + customer response inline.
-        # Previously the admin only saw it on the detail page after acceptance.
-        order_ids = [
-            str(d.get("_id") or d.get("id"))
-            for d in docs if d.get("_id") or d.get("id")
-        ]
-        latest_offers = await _fetch_latest_counter_offers(order_ids)
+        # The latest counter offer per order is joined in so the list can show
+        # the revised price + customer response inline.
+        rows = await serialize_order_stubs(docs, with_counter_offers=True)
 
         if limit is None:
-            return success_response([
-                _serialize_raw(o, latest_offers.get(str(o.get("_id") or o.get("id"))))
-                for o in docs
-            ])
-
-        skip = (page - 1) * limit
-        paged_docs = docs[skip:skip + limit]
-
-        return paginated_response(
-            [
-                _serialize_raw(o, latest_offers.get(str(o.get("_id") or o.get("id"))))
-                for o in paged_docs
-            ],
-            page, limit, total,
-        )
+            return success_response(rows)
+        return paginated_response(rows, page, limit, total)
     except Exception as e:
         logger.exception(f"Failed to get orders list: {e}")
         raise HTTPException(status_code=500, detail="Failed to load orders")
+
+
+# Every field _filter_docs and the default sort read, under both key styles.
+# The list/export endpoints filter on these slim "stubs" and only load full
+# documents for the rows they return.
+_STUB_FIELDS = (
+    "is_test", "isTest", "status", "source",
+    "payment_status", "paymentStatus", "device_grade", "deviceGrade",
+    "network", "postage_method", "postageMethod", "partner_name", "partnerName",
+    "created_at", "createdAt", "updated_at", "updatedAt",
+    "final_price", "finalPrice", "offered_price", "offeredPrice",
+    "order_number", "orderNumber", "customer_name", "customerName",
+    "customer_email", "customerEmail", "customer_phone", "customerPhone",
+    "device_name", "deviceName", "postcode",
+)
+
+# How many full order documents to hold in memory at once while serializing.
+_FULL_DOC_BATCH = 200
+
+
+async def _load_filtered_order_stubs(extra_fields: tuple = (), **filters) -> list:
+    """Return slim order docs (only the filter/sort fields) that pass
+    _filter_docs. Accepts the same keyword filters as _filter_docs."""
+    projection = {f: 1 for f in (*_STUB_FIELDS, *extra_fields)}
+    query: dict = {}
+    if not filters.get("include_test"):
+        # Pre-filter in Mongo so test orders never leave the database. Only
+        # `is_test` is checked here: _filter_docs reads is_test before isTest,
+        # so a row with is_test=True is always excluded there too, and the
+        # Python pass below still applies the exact legacy semantics.
+        query = {"is_test": {"$ne": True}}
+    stubs = await Order.get_motor_collection().find(query, projection).to_list(length=None)
+    return _filter_docs(stubs, **filters)
+
+
+async def serialize_order_stubs(stubs: list, with_counter_offers: bool = False) -> list:
+    """Load full documents for `stubs` (keeping their order) in batches and
+    serialize them, so only one batch of full orders is in memory at a time."""
+    collection = Order.get_motor_collection()
+    rows: list = []
+    for start in range(0, len(stubs), _FULL_DOC_BATCH):
+        batch_ids = [s["_id"] for s in stubs[start:start + _FULL_DOC_BATCH]]
+        full_docs = await collection.find({"_id": {"$in": batch_ids}}).to_list(length=None)
+        by_id = {d["_id"]: d for d in full_docs}
+        offers = (
+            await _fetch_latest_counter_offers([str(i) for i in batch_ids])
+            if with_counter_offers else {}
+        )
+        for oid in batch_ids:
+            doc = by_id.get(oid)
+            if doc is None:  # deleted between the two reads
+                continue
+            rows.append(_serialize_raw(doc, offers.get(str(oid))) if with_counter_offers else _serialize_raw(doc))
+    return rows
 
 
 async def _fetch_latest_counter_offers(order_ids: list) -> dict:
@@ -554,8 +594,7 @@ def _coerce_sort_datetime(value: Any) -> float:
     return 0.0
 
 
-def _sort_value(doc: dict, requested_sort: str):
-    sort_field = {
+_SORT_FIELDS = {
         "created_at": ("created_at", "createdAt"),
         "createdAt": ("created_at", "createdAt"),
         "updated_at": ("updated_at", "updatedAt"),
@@ -568,7 +607,11 @@ def _sort_value(doc: dict, requested_sort: str):
         "offeredPrice": ("offered_price", "offeredPrice"),
         "final_price": ("final_price", "finalPrice"),
         "finalPrice": ("final_price", "finalPrice"),
-    }.get(requested_sort, (requested_sort,))
+}
+
+
+def _sort_value(doc: dict, requested_sort: str):
+    sort_field = _SORT_FIELDS.get(requested_sort, (requested_sort,))
 
     raw = _raw_value(doc, *sort_field)
     if requested_sort in {"created_at", "createdAt", "updated_at", "updatedAt"}:
