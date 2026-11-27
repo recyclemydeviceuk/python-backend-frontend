@@ -1,0 +1,9 @@
+{#- Postage notes, shown wherever customers choose or read about postage:
+    the checkout Postage Option step, the order-success Postage box and the
+    How It Works postage section. Same wording as the "Before You Post Your
+    Device" box in the order confirmation email (templates/orderReceived.html),
+    so keep the two in step. Shows the real order number when the page has one. -#}
+<div style="margin-top:.875rem;background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:.75rem;padding:.875rem 1rem;text-align:left;">
+  <p style="font-size:.8125rem;color:#166534;line-height:1.55;margin:0 0 .5rem 0;"><strong>Include your order number:</strong> Please include a note with your order number{% if order_number %} (<strong>#{{ order_number }}</strong>){% else %} (you'll find it in your confirmation email){% endif %} inside the parcel if you can.</p>
+  <p style="font-size:.8125rem;color:#166534;line-height:1.55;margin:0;"><strong>Please note:</strong> our label is a Royal Mail Tracked 24 Returns label, so the parcel and its contents are covered up to <strong>£150</strong> in value. If you would like to purchase Special Delivery and be covered up to <strong>£750</strong> in value, please request this at the Post Office.</p>
+</div>
